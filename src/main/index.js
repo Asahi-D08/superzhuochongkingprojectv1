@@ -1,6 +1,5 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage } from 'electron'
 import { join } from 'path'
-import { is } from '@electron-toolkit/utils'
 
 let mainWindow = null
 let tray = null
@@ -19,7 +18,8 @@ function createWindow() {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      contextIsolation: true
+      contextIsolation: true,
+      webSecurity: false
     }
   })
 
@@ -30,7 +30,7 @@ function createWindow() {
     mainWindow.show()
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
