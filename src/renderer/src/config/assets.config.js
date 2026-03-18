@@ -1,6 +1,6 @@
-import bookClosed from '../assets/book-closed.svg'
-import bookOpen from '../assets/book-open.svg'
-import character from '../assets/character.svg'
+import bookClosed from '../assets/book-closed.png'
+import bookOpen from '../assets/book-open.png'
+import character from '../assets/character.png'
 
 const assets = {
   bookClosed,
