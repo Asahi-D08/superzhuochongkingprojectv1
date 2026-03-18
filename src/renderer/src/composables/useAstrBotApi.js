@@ -11,6 +11,7 @@ export function useAstrBotApi() {
   let ws = null
   let reconnectTimer = null
   let reconnectAttempts = 0
+  let intentionalClose = false
   const MAX_RECONNECT_ATTEMPTS = 5
 
   function setCredentials(url, key) {
@@ -41,8 +42,11 @@ export function useAstrBotApi() {
   }
 
   function connectWebSocket(onMessage, onEnd) {
+    intentionalClose = false
     if (ws) {
+      intentionalClose = true
       ws.close()
+      intentionalClose = false
     }
 
     const wsProtocol = serverUrl.value.startsWith('https') ? 'wss' : 'ws'
@@ -82,7 +86,9 @@ export function useAstrBotApi() {
 
     ws.onclose = () => {
       connected.value = false
-      scheduleReconnect(onMessage, onEnd)
+      if (!intentionalClose) {
+        scheduleReconnect(onMessage, onEnd)
+      }
     }
 
     ws.onerror = () => {
@@ -119,6 +125,7 @@ export function useAstrBotApi() {
 
   function disconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer)
+    intentionalClose = true
     if (ws) {
       ws.close()
       ws = null

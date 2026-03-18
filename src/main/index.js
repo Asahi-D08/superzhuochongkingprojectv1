@@ -37,8 +37,25 @@ function createWindow() {
   }
 }
 
+function createTrayIcon() {
+  const size = 16
+  const canvas = Buffer.alloc(size * size * 4)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      const inBook = x >= 2 && x <= 13 && y >= 3 && y <= 13
+      if (inBook) {
+        canvas[i] = 139; canvas[i + 1] = 69; canvas[i + 2] = 19; canvas[i + 3] = 255
+      } else {
+        canvas[i + 3] = 0
+      }
+    }
+  }
+  return nativeImage.createFromBuffer(canvas, { width: size, height: size })
+}
+
 function createTray() {
-  const icon = nativeImage.createEmpty()
+  const icon = createTrayIcon()
   tray = new Tray(icon)
   const contextMenu = Menu.buildFromTemplate([
     { label: '显示', click: () => mainWindow?.show() },

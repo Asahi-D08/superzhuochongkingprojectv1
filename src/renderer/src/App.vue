@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useStateMachine, STATES } from './composables/useStateMachine.js'
 import { useAstrBotApi } from './composables/useAstrBotApi.js'
 import { useChatHistory } from './composables/useChatHistory.js'
@@ -30,12 +30,16 @@ import SpeakingState from './components/SpeakingState.vue'
 
 const { currentState, transition } = useStateMachine()
 const api = useAstrBotApi()
-const { messages, loadHistory, addMessage, updateLastBotMessage } = useChatHistory()
+const { messages, loadHistory, addMessage } = useChatHistory()
 
 const botOutput = ref('')
 
 onMounted(() => {
   loadHistory()
+})
+
+onUnmounted(() => {
+  api.disconnect()
 })
 
 async function handleLogin({ serverUrl, apiKey, onError, onSuccess }) {
@@ -54,7 +58,13 @@ function handleSend(text) {
   addMessage('user', text)
   botOutput.value = ''
   transition('SEND_MESSAGE')
-  api.sendMessage(text)
+  if (!api.sendMessage(text)) {
+    botOutput.value = '发送失败：WebSocket 未连接'
+    setTimeout(() => {
+      if (botOutput.value) addMessage('bot', botOutput.value)
+      transition('REPLY_COMPLETE')
+    }, 1500)
+  }
 }
 
 function handleWsMessage(data) {
@@ -75,6 +85,7 @@ function handleWsEnd() {
 }
 
 function startDrag(e) {
+  if (e.button !== 0) return
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
     return
   }
