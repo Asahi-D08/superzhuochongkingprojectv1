@@ -6,8 +6,8 @@ let tray = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 350,
-    height: 450,
+    width: 200,
+    height: 360,
     show: false,
     frame: false,
     transparent: true,
@@ -24,7 +24,7 @@ function createWindow() {
   })
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
-  mainWindow.setPosition(screenWidth - 400, screenHeight - 500)
+  mainWindow.setPosition(screenWidth - 250, screenHeight - 400)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

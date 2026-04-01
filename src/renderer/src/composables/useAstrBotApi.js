@@ -9,6 +9,7 @@ export function useAstrBotApi() {
   const error = ref('')
 
   let ws = null
+  let liveWs = null
   let reconnectTimer = null
   let reconnectAttempts = 0
   let intentionalClose = false
@@ -133,6 +134,70 @@ export function useAstrBotApi() {
     connected.value = false
   }
 
+  async function speechToText(audioBlob, mimoApiKey) {
+    error.value = ''
+    if (!mimoApiKey) {
+      error.value = '未配置小米 API Key'
+      throw new Error(error.value)
+    }
+
+    try {
+      const formData = new FormData()
+      formData.append('file', audioBlob, 'audio.wav')
+      formData.append('model', 'whisper-1')
+
+      const res = await fetch('https://api.xiaoai.mi.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${mimoApiKey}` },
+        body: formData
+      })
+
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(`STT 失败 (${res.status}): ${body}`)
+      }
+
+      const data = await res.json()
+      return (data.text || '').trim()
+    } catch (e) {
+      error.value = e.message
+      throw e
+    }
+  }
+
+  async function textToSpeech(text, mimoApiKey) {
+    error.value = ''
+    if (!mimoApiKey) {
+      error.value = '未配置小米 API Key'
+      throw new Error(error.value)
+    }
+
+    try {
+      const res = await fetch('https://api.xiaoai.mi.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${mimoApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: text,
+          voice: 'alloy'
+        })
+      })
+
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(`TTS 失败 (${res.status}): ${body}`)
+      }
+
+      return await res.arrayBuffer()
+    } catch (e) {
+      error.value = e.message
+      throw e
+    }
+  }
+
   return {
     serverUrl: readonly(serverUrl),
     apiKey: readonly(apiKey),
@@ -144,6 +209,8 @@ export function useAstrBotApi() {
     testConnection,
     connectWebSocket,
     sendMessage,
-    disconnect
+    disconnect,
+    speechToText,
+    textToSpeech
   }
 }

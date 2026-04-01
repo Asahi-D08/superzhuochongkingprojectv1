@@ -23,6 +23,16 @@
         />
       </div>
 
+      <div class="form-group">
+        <label>小米 API Key（语音，可选）</label>
+        <input
+          v-model="mimoApiKey"
+          type="password"
+          placeholder="输入小米 API Key"
+          @keyup.enter="handleLogin"
+        />
+      </div>
+
       <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
 
       <div class="form-actions">
@@ -42,6 +52,7 @@ const emit = defineEmits(['login', 'close'])
 
 const serverUrl = ref('http://localhost:6185')
 const apiKeyInput = ref('')
+const mimoApiKey = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
@@ -55,6 +66,7 @@ async function handleLogin() {
   emit('login', {
     serverUrl: serverUrl.value,
     apiKey: apiKeyInput.value,
+    mimoApiKey: mimoApiKey.value,
     onError: (msg) => {
       errorMsg.value = msg
       loading.value = false

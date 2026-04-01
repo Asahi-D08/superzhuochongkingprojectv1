@@ -1,21 +1,19 @@
 <template>
-  <div class="history-overlay" @click.self="$emit('close')">
-    <div class="history-panel">
-      <div class="history-header">
-        <h3>聊天记录</h3>
-        <button class="btn-close" @click="$emit('close')">✕</button>
-      </div>
-      <div class="history-messages" ref="messagesRef">
-        <div v-if="messages.length === 0" class="empty-hint">暂无聊天记录</div>
-        <div
-          v-for="msg in messages"
-          :key="msg.id"
-          class="message-item"
-          :class="msg.role"
-        >
-          <span class="role-label">{{ msg.role === 'user' ? '你' : 'Bot' }}</span>
-          <p class="message-text">{{ msg.content }}</p>
-          <span class="timestamp">{{ formatTime(msg.timestamp) }}</span>
+  <div class="chat-history">
+    <div class="history-header">
+      <button class="btn-back" @click="$emit('close')">← 返回</button>
+    </div>
+    <div class="history-messages" ref="messagesRef">
+      <div v-if="messages.length === 0" class="empty-hint">暂无聊天记录</div>
+      <div
+        v-for="msg in messages"
+        :key="msg.id"
+        class="bubble-row"
+        :class="msg.role"
+      >
+        <div class="bubble">
+          <p class="bubble-text">{{ msg.content }}</p>
+          <span class="bubble-time">{{ formatTime(msg.timestamp) }}</span>
         </div>
       </div>
     </div>
@@ -45,73 +43,90 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.history-overlay {
-  position: fixed;
+.chat-history {
+  position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.3);
-  z-index: 100;
-}
-.history-panel {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
   border-radius: 12px;
-  width: 300px;
-  max-height: 380px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  z-index: 100;
 }
+
 .history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #eee;
+  padding: 8px;
+  flex-shrink: 0;
 }
-.history-header h3 {
-  margin: 0;
-  font-size: 14px;
-  color: #333;
-}
-.btn-close {
+
+.btn-back {
   background: none;
   border: none;
-  font-size: 16px;
+  font-size: 12px;
+  color: #6A5ACD;
   cursor: pointer;
-  color: #999;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
+.btn-back:hover {
+  background: rgba(106, 90, 205, 0.1);
+}
+
 .history-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 0 10px 10px;
 }
+
 .empty-hint {
   text-align: center;
   color: #999;
-  font-size: 13px;
-  padding: 20px 0;
-}
-.message-item {
-  margin-bottom: 12px;
-}
-.message-item.user .role-label { color: #6A5ACD; }
-.message-item.bot .role-label { color: #e67e22; }
-.role-label {
   font-size: 11px;
-  font-weight: 600;
+  padding: 40px 0;
 }
-.message-text {
-  margin: 2px 0;
-  font-size: 13px;
-  color: #333;
+
+.bubble-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+.bubble-row.user {
+  justify-content: flex-end;
+}
+.bubble-row.bot {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 75%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 11px;
   line-height: 1.4;
-  white-space: pre-wrap;
   word-break: break-word;
 }
-.timestamp {
-  font-size: 10px;
-  color: #bbb;
+.bubble-row.user .bubble {
+  background: #6A5ACD;
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.bubble-row.bot .bubble {
+  background: #f0f0f0;
+  color: #333;
+  border-bottom-left-radius: 3px;
+}
+
+.bubble-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.bubble-time {
+  display: block;
+  font-size: 9px;
+  margin-top: 3px;
+  opacity: 0.6;
+}
+.bubble-row.user .bubble-time {
+  text-align: right;
 }
 </style>
