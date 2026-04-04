@@ -43,12 +43,16 @@ textarea {
   border: 1px solid rgba(106, 90, 205, 0.3);
   border-radius: 8px;
   font-size: 13px;
+  line-height: 1.4;
   resize: none;
   outline: none;
   background: rgba(255, 255, 255, 0.95);
   box-sizing: border-box;
   font-family: inherit;
   transition: border-color 0.2s;
+  min-height: 52px;
+  max-height: 96px;
+  overflow-y: auto;
 }
 textarea:focus {
   border-color: #6A5ACD;

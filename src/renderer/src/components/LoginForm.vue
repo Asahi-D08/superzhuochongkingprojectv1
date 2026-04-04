@@ -4,16 +4,6 @@
       <h3>连接到 AstrBot</h3>
 
       <div class="form-group">
-        <label>后端地址</label>
-        <input
-          v-model="serverUrl"
-          type="text"
-          placeholder="http://localhost:6185"
-          @keyup.enter="handleLogin"
-        />
-      </div>
-
-      <div class="form-group">
         <label>API Key</label>
         <input
           v-model="apiKeyInput"
@@ -50,15 +40,15 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['login', 'close'])
 
-const serverUrl = ref('http://localhost:6185')
+const serverUrl = ref('http://104.168.26.209:6185')
 const apiKeyInput = ref('')
 const mimoApiKey = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
-  if (!serverUrl.value || !apiKeyInput.value) {
-    errorMsg.value = '请填写所有字段'
+  if (!apiKeyInput.value) {
+    errorMsg.value = '请填写 API Key'
     return
   }
   loading.value = true

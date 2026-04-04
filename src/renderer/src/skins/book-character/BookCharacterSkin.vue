@@ -44,6 +44,7 @@ defineProps({
   width: 80px;
   height: auto;
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  pointer-events: auto;
 }
 
 .character-container {
@@ -53,5 +54,6 @@ defineProps({
   width: 180px;
   height: auto;
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+  pointer-events: auto;
 }
 </style>

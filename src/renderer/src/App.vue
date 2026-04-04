@@ -171,9 +171,7 @@ async function handleWsEnd() {
 
 function startDrag(e) {
   if (e.button !== 0) return
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
-    return
-  }
+  if (e.target.tagName !== 'IMG') return
 
   let lastX = e.screenX
   let lastY = e.screenY

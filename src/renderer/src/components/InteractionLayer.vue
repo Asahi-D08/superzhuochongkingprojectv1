@@ -94,7 +94,11 @@ function handleSend(text) {
 
 watch(() => props.state, (newState) => {
   showMenu.value = false
-  if (newState === 'standby') {
+})
+
+// 仅在出现新的 bot 回复时展示「最后一条」气泡，避免每次回到 standby 都强制展开导致输入框被顶下去
+watch(lastBotMessage, (newVal, oldVal) => {
+  if (newVal && newVal !== oldVal) {
     dismissedReply.value = false
   }
 })
