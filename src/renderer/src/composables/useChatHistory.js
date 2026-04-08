@@ -27,12 +27,21 @@ export function useChatHistory() {
     }
   }
 
-  async function addMessage(role, content) {
+  /**
+   * @param {'user'|'bot'} role
+   * @param {string} content 纯文本内容
+   * @param {Array<{type:'image', base64:string, mimeType:string, filename?:string}>} [attachments]
+   *        可选的附件数组。base64 是完整 data URI（data:image/png;base64,...），方便直接塞进 <img>
+   */
+  async function addMessage(role, content, attachments) {
     const msg = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       role,
       content,
       timestamp: Date.now()
+    }
+    if (attachments && attachments.length) {
+      msg.attachments = attachments
     }
     messages.value.push(msg)
     await saveHistory()

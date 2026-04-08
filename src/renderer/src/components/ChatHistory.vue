@@ -12,7 +12,17 @@
         :class="msg.role"
       >
         <div class="bubble">
-          <p class="bubble-text">{{ msg.content }}</p>
+          <!-- 历史图片：user 消息发过来的附件 -->
+          <div v-if="msg.attachments && msg.attachments.length" class="bubble-images">
+            <img
+              v-for="(a, i) in msg.attachments"
+              :key="i"
+              :src="a.base64"
+              class="bubble-image"
+              :alt="a.filename || 'image'"
+            />
+          </div>
+          <p v-if="msg.content" class="bubble-text">{{ msg.content }}</p>
           <span class="bubble-time">{{ formatTime(msg.timestamp) }}</span>
         </div>
       </div>
@@ -118,6 +128,24 @@ onMounted(async () => {
 .bubble-text {
   margin: 0;
   white-space: pre-wrap;
+}
+
+.bubble-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+.bubble-image {
+  max-width: 80px;
+  max-height: 80px;
+  border-radius: 4px;
+  object-fit: cover;
+  display: block;
+}
+.bubble-row.user .bubble-image {
+  /* 用户气泡内图片稍微突出边框 */
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .bubble-time {

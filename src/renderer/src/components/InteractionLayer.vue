@@ -19,7 +19,7 @@
           <p class="last-reply-text">{{ lastBotMessage }}</p>
         </div>
         <div class="input-row">
-          <ChatInput @send="handleSend" />
+          <ChatInput :upload-fn="uploadFn" @send="handleSend" />
           <button v-if="hasVoice" class="btn-mic" @click="$emit('start-voice')" title="语音输入">
             <span class="mic-icon">🎤</span>
           </button>
@@ -72,7 +72,9 @@ const props = defineProps({
   state: { type: String, required: true },
   messages: { type: Array, default: () => [] },
   botOutput: { type: String, default: '' },
-  hasVoice: { type: Boolean, default: false }
+  hasVoice: { type: Boolean, default: false },
+  // 上传函数透传给 ChatInput，由 App.vue 传入 api.uploadFile
+  uploadFn: { type: Function, required: true }
 })
 
 const emit = defineEmits(['login', 'send', 'start-voice', 'stop-voice', 'cancel-voice', 'switch-skin'])
@@ -87,9 +89,10 @@ const lastBotMessage = computed(() => {
   return last?.content || ''
 })
 
-function handleSend(text) {
+// payload: { text: string, attachments: Array<{attachment_id, base64, mimeType, filename}> }
+function handleSend(payload) {
   dismissedReply.value = true
-  emit('send', text)
+  emit('send', payload)
 }
 
 watch(() => props.state, (newState) => {

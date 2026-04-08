@@ -10,6 +10,7 @@
       :messages="messages"
       :bot-output="botOutput"
       :has-voice="!!mimoApiKey"
+      :upload-fn="api.uploadFile"
       @login="handleLogin"
       @send="handleSend"
       @start-voice="handleStartVoice"
@@ -73,13 +74,46 @@ async function handleLogin({ serverUrl, apiKey, mimoApiKey: mimoKey, onError, on
   }
 }
 
-// ---- 文本发送 ----
+// ---- 文本 / 多模态发送 ----
 
-function handleSend(text) {
-  addMessage('user', text)
+/**
+ * 接收 ChatInput 通过 InteractionLayer 透传上来的 payload：
+ *   { text: string, attachments: Array<{attachment_id, base64, mimeType, filename}> }
+ *
+ * 组装成 AstrBot Open API WS 要的 message 字段：
+ *   - 纯文字 → 仍然传字符串（保持与旧逻辑兼容）
+ *   - 带图片 → 传 message parts 数组 [{type:'plain',text},{type:'image',attachment_id}...]
+ */
+function handleSend(payload) {
+  // 兼容老签名：如果父组件还在传字符串就包一层
+  const { text, attachments } = typeof payload === 'string'
+    ? { text: payload, attachments: [] }
+    : payload
+
+  // 写入本地历史（user 消息带上 base64 方便重启后还能看到图）
+  const historyAttachments = (attachments || []).map(a => ({
+    type: 'image',
+    base64: a.base64,
+    mimeType: a.mimeType,
+    filename: a.filename
+  }))
+  addMessage('user', text, historyAttachments)
+
+  // 组装要发给 AstrBot 的 message 字段
+  let messageField
+  if (attachments && attachments.length > 0) {
+    messageField = []
+    if (text) messageField.push({ type: 'plain', text })
+    for (const a of attachments) {
+      messageField.push({ type: 'image', attachment_id: a.attachment_id })
+    }
+  } else {
+    messageField = text
+  }
+
   botOutput.value = ''
   transition('SEND_MESSAGE')
-  if (!api.sendMessage(text)) {
+  if (!api.sendMessage(messageField)) {
     botOutput.value = '发送失败：WebSocket 未连接'
     setTimeout(() => {
       if (botOutput.value) addMessage('bot', botOutput.value)

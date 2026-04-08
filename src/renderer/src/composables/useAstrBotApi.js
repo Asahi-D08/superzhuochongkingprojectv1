@@ -134,6 +134,41 @@ export function useAstrBotApi() {
     connected.value = false
   }
 
+  /**
+   * 上传一个 Blob/File 到 AstrBot Open API，返回 attachment_id。
+   * 上传成功后，可在 sendMessage 里用 { type: 'image', attachment_id } 引用。
+   *
+   * @param {Blob | File} blob 要上传的文件（粘贴得到的图片是 File）
+   * @param {string} [filename] 可选文件名；Blob 没有 name 时用来兜底
+   * @returns {Promise<{ attachment_id: string, filename: string, type: string }>}
+   */
+  async function uploadFile(blob, filename) {
+    if (!serverUrl.value || !apiKey.value) {
+      throw new Error('未配置服务器地址或 API Key')
+    }
+
+    const formData = new FormData()
+    // 后端读取 post_data["file"]（open_api.py → chat.py post_file），字段名必须是 "file"
+    formData.append('file', blob, filename || blob.name || 'upload.bin')
+
+    const res = await fetch(`${serverUrl.value}/api/v1/file`, {
+      method: 'POST',
+      headers: { 'X-API-Key': apiKey.value },
+      body: formData
+    })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`上传失败 (${res.status}): ${body}`)
+    }
+
+    const data = await res.json()
+    if (data.status !== 'ok' || !data.data?.attachment_id) {
+      throw new Error(data.message || '上传返回异常')
+    }
+    return data.data
+  }
+
   async function speechToText(audioBlob, mimoApiKey) {
     error.value = ''
     if (!mimoApiKey) {
@@ -210,6 +245,7 @@ export function useAstrBotApi() {
     connectWebSocket,
     sendMessage,
     disconnect,
+    uploadFile,
     speechToText,
     textToSpeech
   }
