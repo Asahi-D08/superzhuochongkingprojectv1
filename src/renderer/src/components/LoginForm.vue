@@ -40,7 +40,7 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['login', 'close'])
 
-const serverUrl = ref('http://104.168.26.209:6185')
+const serverUrl = ref('https://astrbot.losingfire.com')
 const apiKeyInput = ref('')
 const mimoApiKey = ref('')
 const errorMsg = ref('')
