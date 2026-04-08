@@ -29,8 +29,10 @@ defineProps({
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 56px;
+  /* 贴顶对齐：窗口压矮到 220 后，角色贴顶 + 输入框贴底，中间极小缝隙 */
+  justify-content: flex-start;
+  /* 12px = 8px float 动画峰值 + 4px 呼吸 */
+  padding-top: 12px;
   pointer-events: none;
 }
 

@@ -243,7 +243,7 @@ html, body {
 }
 #desktop-pet {
   width: 200px;
-  height: 360px;
+  height: 220px;
   position: relative;
   -webkit-app-region: no-drag;
 }

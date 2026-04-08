@@ -33,7 +33,12 @@ defineProps({
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* 贴顶对齐：这样把窗口拖到屏幕最上端时，角色也就到达屏幕顶部，
+     而不是被 justify-content: center 锁在窗口中段 */
+  justify-content: flex-start;
+  /* 12px 留白 = 角色 float 动画峰值(translateY -8px) + 4px 呼吸空间，
+     既不挡住菜单栏又不让 drop-shadow 被裁掉 */
+  padding-top: 12px;
   pointer-events: none;
 }
 
