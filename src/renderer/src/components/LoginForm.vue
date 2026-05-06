@@ -2,23 +2,17 @@
   <div class="login-overlay" @click.self="$emit('close')">
     <div class="login-form">
       <h3>连接到 AstrBot</h3>
+      <p class="server-hint">服务端：{{ serverUrl }}</p>
 
       <div class="form-group">
-        <label>API Key</label>
+        <label for="session-id-input">Session ID（输入 QQ 号）</label>
         <input
-          v-model="apiKeyInput"
-          type="password"
-          placeholder="输入 API Key"
-          @keyup.enter="handleLogin"
-        />
-      </div>
-
-      <div class="form-group">
-        <label>小米 API Key（语音，可选）</label>
-        <input
-          v-model="mimoApiKey"
-          type="password"
-          placeholder="输入小米 API Key"
+          id="session-id-input"
+          v-model="sessionIdInput"
+          type="text"
+          inputmode="numeric"
+          autocomplete="username"
+          placeholder="例如：123456789"
           @keyup.enter="handleLogin"
         />
       </div>
@@ -37,26 +31,27 @@
 
 <script setup>
 import { ref } from 'vue'
+import { ASTRBOT_FIXED_API_KEY } from '../composables/useAstrBotApi.js'
 
 const emit = defineEmits(['login', 'close'])
 
 const serverUrl = ref('https://astrbot.losingfire.com')
-const apiKeyInput = ref('')
-const mimoApiKey = ref('')
+const sessionIdInput = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
-  if (!apiKeyInput.value) {
-    errorMsg.value = '请填写 API Key'
+  const sid = sessionIdInput.value.trim()
+  if (!sid) {
+    errorMsg.value = '请填写 Session ID（QQ 号）'
     return
   }
   loading.value = true
   errorMsg.value = ''
   emit('login', {
     serverUrl: serverUrl.value,
-    apiKey: apiKeyInput.value,
-    mimoApiKey: mimoApiKey.value,
+    apiKey: ASTRBOT_FIXED_API_KEY,
+    sessionId: sid,
     onError: (msg) => {
       errorMsg.value = msg
       loading.value = false
@@ -90,6 +85,13 @@ async function handleLogin() {
   font-size: 16px;
   color: #333;
   text-align: center;
+}
+.server-hint {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  word-break: break-all;
 }
 .form-group {
   margin-bottom: 12px;

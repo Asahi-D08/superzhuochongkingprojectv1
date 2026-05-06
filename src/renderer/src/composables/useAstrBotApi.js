@@ -1,5 +1,9 @@
 import { ref, readonly } from 'vue'
 
+/** AstrBot Open API Key（内置，不在界面输入） */
+export const ASTRBOT_FIXED_API_KEY =
+  'abk_lMV8L06cltB0Kod2AVYkspc8j6IEMOL9yIlxnyO7CFg'
+
 export function useAstrBotApi() {
   const serverUrl = ref('')
   const apiKey = ref('')
@@ -18,6 +22,11 @@ export function useAstrBotApi() {
   function setCredentials(url, key) {
     serverUrl.value = url.replace(/\/+$/, '')
     apiKey.value = key
+  }
+
+  /** 登录时设定发往 AstrBot 的 session_id（如 QQ 号），不再被 WS 下发的 session 覆盖 */
+  function setSessionId(id) {
+    sessionId.value = (id ?? '').trim()
   }
 
   async function testConnection() {
@@ -70,9 +79,7 @@ export function useAstrBotApi() {
           return
         }
 
-        if (data.type === 'session_id' && data.session_id) {
-          sessionId.value = data.session_id
-        }
+        // session_id 由用户在登录页填写，不使用服务端消息覆盖
 
         if (data.type === 'end' || (data.type === 'complete' && !data.streaming)) {
           onEnd?.(data)
@@ -116,7 +123,7 @@ export function useAstrBotApi() {
       t: 'send',
       message,
       username: username.value,
-      session_id: sessionId.value || undefined,
+      session_id: sessionId.value ? sessionId.value : undefined,
       enable_streaming: true
     }
 
@@ -169,70 +176,6 @@ export function useAstrBotApi() {
     return data.data
   }
 
-  async function speechToText(audioBlob, mimoApiKey) {
-    error.value = ''
-    if (!mimoApiKey) {
-      error.value = '未配置小米 API Key'
-      throw new Error(error.value)
-    }
-
-    try {
-      const formData = new FormData()
-      formData.append('file', audioBlob, 'audio.wav')
-      formData.append('model', 'whisper-1')
-
-      const res = await fetch('https://api.xiaoai.mi.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${mimoApiKey}` },
-        body: formData
-      })
-
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`STT 失败 (${res.status}): ${body}`)
-      }
-
-      const data = await res.json()
-      return (data.text || '').trim()
-    } catch (e) {
-      error.value = e.message
-      throw e
-    }
-  }
-
-  async function textToSpeech(text, mimoApiKey) {
-    error.value = ''
-    if (!mimoApiKey) {
-      error.value = '未配置小米 API Key'
-      throw new Error(error.value)
-    }
-
-    try {
-      const res = await fetch('https://api.xiaoai.mi.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${mimoApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'tts-1',
-          input: text,
-          voice: 'alloy'
-        })
-      })
-
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`TTS 失败 (${res.status}): ${body}`)
-      }
-
-      return await res.arrayBuffer()
-    } catch (e) {
-      error.value = e.message
-      throw e
-    }
-  }
-
   return {
     serverUrl: readonly(serverUrl),
     apiKey: readonly(apiKey),
@@ -241,12 +184,11 @@ export function useAstrBotApi() {
     error: readonly(error),
     username,
     setCredentials,
+    setSessionId,
     testConnection,
     connectWebSocket,
     sendMessage,
     disconnect,
-    uploadFile,
-    speechToText,
-    textToSpeech
+    uploadFile
   }
 }

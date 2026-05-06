@@ -81,7 +81,7 @@ src/
     ├── App.vue                # 应用入口，组合皮肤 + 交互层
     ├── skins/                 # 可插拔皮肤
     │   ├── registry.js        # 皮肤注册与管理
-    │   └── book-character/    # 默认皮肤
+    │   └── zhenhong-changfu/  # 默认皮肤（真红常服）
     ├── components/            # UI 组件
     │   ├── InteractionLayer   # 交互层（登录/聊天/输出）
     │   ├── SkinSwitcher       # 皮肤切换面板
