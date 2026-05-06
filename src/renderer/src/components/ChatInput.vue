@@ -325,8 +325,8 @@ textarea {
   box-sizing: border-box;
   font-family: inherit;
   transition: border-color 0.2s;
-  min-height: 52px;
-  max-height: 96px;
+  min-height: var(--textbox-height, 52px);
+  max-height: calc(var(--textbox-height, 52px) + 44px);
   overflow-y: auto;
 }
 textarea:focus {

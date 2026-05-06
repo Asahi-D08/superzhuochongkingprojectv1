@@ -56,12 +56,14 @@ src/
 ├── preload/                      # 安全暴露给渲染进程的桥接 API
 └── renderer/src/
     ├── App.vue                   # 应用编排入口
-    ├── components/               # 登录、聊天、历史、输出、皮肤切换
-    ├── composables/              # 状态机、AstrBot API、语音、本地历史
+    ├── components/               # 登录、聊天、历史、输出、皮肤切换、设置
+    ├── composables/              # 状态机、AstrBot API、语音、设置、本地历史
     ├── services/
     │   ├── audio/                # WAV 编码与音频工具
     │   └── speechProviders/      # AstrBot、浏览器、MiMo 语音适配器
-    └── skins/                    # 可插拔皮肤与素材
+    └── skins/
+        ├── registry.js           # 皮肤注册与管理
+        └── zhenhong-changfu/     # 默认皮肤（真红常服）
 ```
 
 ## 架构文档

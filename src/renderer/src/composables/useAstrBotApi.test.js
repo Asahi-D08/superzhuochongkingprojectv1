@@ -41,4 +41,40 @@ describe('useAstrBotApi', () => {
     expect(api.connected.value).toBe(false)
     expect(api.error.value).toBe('API Key 无效，请检查是否复制完整、没有多余空格，并确认以 abk_ 开头')
   })
+
+  it('sends the user-entered session id and does not replace it from websocket messages', () => {
+    let socket
+    const send = vi.fn()
+    class FakeWebSocket {
+      static OPEN = 1
+
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN
+        this.send = send
+        socket = this
+      }
+
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    const api = useAstrBotApi()
+    api.setCredentials('https://astrbot.losingfire.com', 'abk_user_entered')
+    api.setSessionId('123456789')
+    api.connectWebSocket()
+
+    socket.onmessage({
+      data: JSON.stringify({ type: 'session_id', session_id: 'server-generated' })
+    })
+    api.sendMessage('你好')
+
+    expect(api.sessionId.value).toBe('123456789')
+    expect(send).toHaveBeenCalledWith(JSON.stringify({
+      t: 'send',
+      message: '你好',
+      username: 'desktop-pet-user',
+      session_id: '123456789',
+      enable_streaming: true
+    }))
+  })
 })

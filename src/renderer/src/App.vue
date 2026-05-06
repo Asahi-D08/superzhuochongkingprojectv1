@@ -1,6 +1,7 @@
 <template>
   <div
     id="desktop-pet"
+    :style="petStyle"
     @mousedown="startDrag"
     @contextmenu.prevent
   >
@@ -17,6 +18,7 @@
       @stop-voice="handleStopVoice"
       @cancel-voice="handleCancelVoice"
       @switch-skin="openSkinSwitcher"
+      @open-settings="openSettings"
       @modal-open="expandWindow"
       @modal-close="restoreWindow"
     />
@@ -24,38 +26,76 @@
       v-if="showSkinSwitcher"
       @close="closeSkinSwitcher"
     />
+    <SettingsPanel
+      v-if="showSettings"
+      @close="closeSettings"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { get, set } from 'idb-keyval'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { set } from 'idb-keyval'
 import { useStateMachine } from './composables/useStateMachine.js'
 import { useAstrBotApi } from './composables/useAstrBotApi.js'
 import { useChatHistory } from './composables/useChatHistory.js'
 import { useVoice } from './composables/useVoice.js'
 import { useSkinManager } from './skins/registry.js'
+import { useSettings } from './composables/useSettings.js'
 import { createSpeechProvider } from './services/speechProviders/speechProviderFactory.js'
 import InteractionLayer from './components/InteractionLayer.vue'
 import SkinSwitcher from './components/SkinSwitcher.vue'
+import SettingsPanel from './components/SettingsPanel.vue'
 
 const { currentState, transition } = useStateMachine()
 const api = useAstrBotApi()
 const { messages, loadHistory, addMessage } = useChatHistory()
 const { currentSkin, load: loadSkin } = useSkinManager()
+const { characterSize, textBoxHeight, load: loadSettings } = useSettings()
 const voice = useVoice()
 
 const botOutput = ref('')
 const showSkinSwitcher = ref(false)
+const showSettings = ref(false)
 const speechProvider = ref(createSpeechProvider())
 
-const COMPACT_WINDOW = { width: 200, height: 220 }
 const MODAL_WINDOW = { width: 340, height: 360 }
 
-onMounted(async () => {
+// Window dims need to fully contain:
+//   - .skin-visual padding-top (12) for breathing/float animation
+//   - the full character image (square, height = characterSize)
+//   - 6px gap between character bottom and textbox top
+//   - the textbox (textBoxHeight)
+// => minHeight = characterSize + textBoxHeight + 28
+function computeWindowSize() {
+  const w = Math.max(200, characterSize.value + 20)
+  const h = Math.max(260, characterSize.value + textBoxHeight.value + 28)
+  return { w, h }
+}
+
+const petStyle = computed(() => {
+  const { w, h } = computeWindowSize()
+  return {
+    width: `${w}px`,
+    height: `${h}px`,
+    '--character-size': `${characterSize.value}px`,
+    '--textbox-height': `${textBoxHeight.value}px`
+  }
+})
+
+watch([characterSize, textBoxHeight], () => {
+  if (showSkinSwitcher.value || showSettings.value) {
+    expandWindow()
+    return
+  }
+  restoreWindow()
+})
+
+onMounted(() => {
   loadHistory()
   loadSkin()
   updateSpeechProvider()
+  loadSettings().then(restoreWindow)
 })
 
 onUnmounted(() => {
@@ -65,12 +105,17 @@ onUnmounted(() => {
 // ---- 窗口尺寸 ----
 
 function expandWindow() {
-  window.electronAPI?.windowResize(MODAL_WINDOW.width, MODAL_WINDOW.height)
+  const { w, h } = computeWindowSize()
+  window.electronAPI?.windowResize(
+    Math.max(MODAL_WINDOW.width, w),
+    Math.max(MODAL_WINDOW.height, h)
+  )
 }
 
 function restoreWindow() {
-  if (showSkinSwitcher.value) return
-  window.electronAPI?.windowResize(COMPACT_WINDOW.width, COMPACT_WINDOW.height)
+  if (showSkinSwitcher.value || showSettings.value) return
+  const { w, h } = computeWindowSize()
+  window.electronAPI?.windowResize(w, h)
 }
 
 function openSkinSwitcher() {
@@ -83,10 +128,21 @@ function closeSkinSwitcher() {
   restoreWindow()
 }
 
+function openSettings() {
+  showSettings.value = true
+  expandWindow()
+}
+
+function closeSettings() {
+  showSettings.value = false
+  restoreWindow()
+}
+
 // ---- 登录 ----
 
-async function handleLogin({ serverUrl, apiKey, voiceApiKey: voiceKey, onError, onSuccess }) {
+async function handleLogin({ serverUrl, apiKey, sessionId, voiceApiKey: voiceKey, onError, onSuccess }) {
   api.setCredentials(serverUrl, apiKey)
+  api.setSessionId(sessionId)
   const ok = await api.testConnection()
   if (ok) {
     transition('LOGIN_SUCCESS')
@@ -114,8 +170,8 @@ function updateSpeechProvider() {
  *   { text: string, attachments: Array<{attachment_id, base64, mimeType, filename}> }
  *
  * 组装成 AstrBot Open API WS 要的 message 字段：
- *   - 纯文字 → 仍然传字符串（保持与旧逻辑兼容）
- *   - 带图片 → 传 message parts 数组 [{type:'plain',text},{type:'image',attachment_id}...]
+ *   - 纯文字 -> 仍然传字符串（保持与旧逻辑兼容）
+ *   - 带图片 -> 传 message parts 数组 [{type:'plain',text},{type:'image',attachment_id}...]
  */
 function handleSend(payload) {
   // 兼容老签名：如果父组件还在传字符串就包一层
@@ -279,8 +335,6 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 #desktop-pet {
-  width: 100vw;
-  height: 100vh;
   position: relative;
   -webkit-app-region: no-drag;
 }

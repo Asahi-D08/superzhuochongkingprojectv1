@@ -2,23 +2,29 @@
   <div class="login-overlay" @click.self="$emit('close')">
     <div class="login-form">
       <h3>连接到 AstrBot</h3>
+      <p class="server-hint">服务端：{{ serverUrl }}</p>
 
       <div class="form-group">
-        <label>服务器地址</label>
+        <label for="api-key-input">API Key</label>
         <input
-          v-model="serverUrl"
-          type="text"
-          placeholder="http://localhost:6185"
+          id="api-key-input"
+          v-model="apiKeyInput"
+          type="password"
+          autocomplete="current-password"
+          placeholder="输入 API Key"
           @keyup.enter="handleLogin"
         />
       </div>
 
       <div class="form-group">
-        <label>API Key</label>
+        <label for="session-id-input">Session ID（输入 QQ 号）</label>
         <input
-          v-model="apiKeyInput"
-          type="password"
-          placeholder="输入 API Key"
+          id="session-id-input"
+          v-model="sessionIdInput"
+          type="text"
+          inputmode="numeric"
+          autocomplete="username"
+          placeholder="例如：123456789"
           @keyup.enter="handleLogin"
         />
       </div>
@@ -40,14 +46,15 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['login', 'close'])
 
-const serverUrl = ref('http://localhost:6185')
+const serverUrl = 'https://astrbot.losingfire.com'
 const apiKeyInput = ref('')
+const sessionIdInput = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
-  const normalizedServerUrl = serverUrl.value.trim()
   const normalizedApiKey = apiKeyInput.value.trim()
+  const sessionId = sessionIdInput.value.trim()
   if (!normalizedApiKey) {
     errorMsg.value = '请填写 API Key'
     return
@@ -56,11 +63,16 @@ async function handleLogin() {
     errorMsg.value = 'API Key 格式不正确，应以 abk_ 开头'
     return
   }
+  if (!sessionId) {
+    errorMsg.value = '请填写 Session ID（QQ 号）'
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   emit('login', {
-    serverUrl: normalizedServerUrl,
+    serverUrl,
     apiKey: normalizedApiKey,
+    sessionId,
     voiceApiKey: '',
     onError: (msg) => {
       errorMsg.value = msg
@@ -95,6 +107,13 @@ async function handleLogin() {
   font-size: 16px;
   color: #333;
   text-align: center;
+}
+.server-hint {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  word-break: break-all;
 }
 .form-group {
   margin-bottom: 12px;

@@ -14,7 +14,7 @@ const WINDOW_BOUNDS = {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 200,
-    height: 220,
+    height: 260,
     show: false,
     frame: false,
     transparent: true,
@@ -31,7 +31,7 @@ function createWindow() {
   })
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
-  mainWindow.setPosition(screenWidth - 250, screenHeight - 260)
+  mainWindow.setPosition(screenWidth - 250, screenHeight - 300)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

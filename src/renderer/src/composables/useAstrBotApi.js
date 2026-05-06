@@ -19,6 +19,11 @@ export function useAstrBotApi() {
     apiKey.value = String(key || '').trim()
   }
 
+  /** 登录时设定发往 AstrBot 的 session_id（如 QQ 号），不再被 WS 下发的 session 覆盖 */
+  function setSessionId(id) {
+    sessionId.value = (id ?? '').trim()
+  }
+
   async function testConnection() {
     error.value = ''
     try {
@@ -102,9 +107,7 @@ export function useAstrBotApi() {
           return
         }
 
-        if (data.type === 'session_id' && data.session_id) {
-          sessionId.value = data.session_id
-        }
+        // session_id 由用户在登录页填写，不使用服务端消息覆盖
 
         if (data.type === 'end' || (data.type === 'complete' && !data.streaming)) {
           onEnd?.(data)
@@ -148,7 +151,7 @@ export function useAstrBotApi() {
       t: 'send',
       message,
       username: username.value,
-      session_id: sessionId.value || undefined,
+      session_id: sessionId.value ? sessionId.value : undefined,
       enable_streaming: true
     }
 
@@ -209,6 +212,7 @@ export function useAstrBotApi() {
     error: readonly(error),
     username,
     setCredentials,
+    setSessionId,
     testConnection,
     connectWebSocket,
     sendMessage,

@@ -27,6 +27,7 @@
         <div v-if="showMenu" class="context-menu">
           <button @click="openHistory">聊天记录</button>
           <button @click="$emit('switch-skin'); showMenu = false">切换皮肤</button>
+          <button @click="$emit('open-settings'); showMenu = false">设置</button>
         </div>
       </div>
       <ChatHistory
@@ -84,6 +85,7 @@ const emit = defineEmits([
   'stop-voice',
   'cancel-voice',
   'switch-skin',
+  'open-settings',
   'modal-open',
   'modal-close'
 ])
