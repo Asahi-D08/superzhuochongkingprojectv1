@@ -4,21 +4,21 @@
       <h3>连接到 AstrBot</h3>
 
       <div class="form-group">
-        <label>API Key</label>
+        <label>服务器地址</label>
         <input
-          v-model="apiKeyInput"
-          type="password"
-          placeholder="输入 API Key"
+          v-model="serverUrl"
+          type="text"
+          placeholder="http://localhost:6185"
           @keyup.enter="handleLogin"
         />
       </div>
 
       <div class="form-group">
-        <label>小米 API Key（语音，可选）</label>
+        <label>API Key</label>
         <input
-          v-model="mimoApiKey"
+          v-model="apiKeyInput"
           type="password"
-          placeholder="输入小米 API Key"
+          placeholder="输入 API Key"
           @keyup.enter="handleLogin"
         />
       </div>
@@ -40,23 +40,28 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['login', 'close'])
 
-const serverUrl = ref('https://astrbot.losingfire.com')
+const serverUrl = ref('http://localhost:6185')
 const apiKeyInput = ref('')
-const mimoApiKey = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
-  if (!apiKeyInput.value) {
+  const normalizedServerUrl = serverUrl.value.trim()
+  const normalizedApiKey = apiKeyInput.value.trim()
+  if (!normalizedApiKey) {
     errorMsg.value = '请填写 API Key'
+    return
+  }
+  if (!normalizedApiKey.startsWith('abk_')) {
+    errorMsg.value = 'API Key 格式不正确，应以 abk_ 开头'
     return
   }
   loading.value = true
   errorMsg.value = ''
   emit('login', {
-    serverUrl: serverUrl.value,
-    apiKey: apiKeyInput.value,
-    mimoApiKey: mimoApiKey.value,
+    serverUrl: normalizedServerUrl,
+    apiKey: normalizedApiKey,
+    voiceApiKey: '',
     onError: (msg) => {
       errorMsg.value = msg
       loading.value = false

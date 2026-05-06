@@ -4,6 +4,13 @@ import { join } from 'path'
 let mainWindow = null
 let tray = null
 
+const WINDOW_BOUNDS = {
+  minWidth: 200,
+  minHeight: 220,
+  maxWidth: 420,
+  maxHeight: 420
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 200,
@@ -75,8 +82,27 @@ function setupIPC() {
 
   ipcMain.on('window-resize', (_event, { width, height }) => {
     if (!mainWindow) return
-    mainWindow.setSize(Math.round(width), Math.round(height))
+    const nextWidth = clamp(Math.round(width), WINDOW_BOUNDS.minWidth, WINDOW_BOUNDS.maxWidth)
+    const nextHeight = clamp(Math.round(height), WINDOW_BOUNDS.minHeight, WINDOW_BOUNDS.maxHeight)
+    const bounds = mainWindow.getBounds()
+    const { workArea } = screen.getDisplayMatching(bounds)
+    const rightGap = workArea.x + workArea.width - (bounds.x + bounds.width)
+    const bottomGap = workArea.y + workArea.height - (bounds.y + bounds.height)
+    const nextX = clamp(workArea.x + workArea.width - nextWidth - rightGap, workArea.x, workArea.x + workArea.width - nextWidth)
+    const nextY = clamp(workArea.y + workArea.height - nextHeight - bottomGap, workArea.y, workArea.y + workArea.height - nextHeight)
+
+    mainWindow.setBounds({
+      x: nextX,
+      y: nextY,
+      width: nextWidth,
+      height: nextHeight
+    })
   })
+}
+
+function clamp(value, min, max) {
+  if (max < min) return min
+  return Math.min(Math.max(value, min), max)
 }
 
 app.whenReady().then(() => {

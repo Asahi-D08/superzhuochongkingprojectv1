@@ -9,25 +9,30 @@ export function useAstrBotApi() {
   const error = ref('')
 
   let ws = null
-  let liveWs = null
   let reconnectTimer = null
   let reconnectAttempts = 0
   let intentionalClose = false
   const MAX_RECONNECT_ATTEMPTS = 5
 
   function setCredentials(url, key) {
-    serverUrl.value = url.replace(/\/+$/, '')
-    apiKey.value = key
+    serverUrl.value = String(url || '').trim().replace(/\/+$/, '')
+    apiKey.value = String(key || '').trim()
   }
 
   async function testConnection() {
     error.value = ''
     try {
-      const res = await fetch(`${serverUrl.value}/api/v1/im/bots`, {
+      const query = new URLSearchParams({
+        page: '1',
+        page_size: '1',
+        username: username.value
+      })
+      const res = await fetch(`${serverUrl.value}/api/v1/chat/sessions?${query.toString()}`, {
         headers: { 'X-API-Key': apiKey.value }
       })
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+        const body = await res.text().catch(() => '')
+        throw new Error(formatConnectionError(res.status, res.statusText, body))
       }
       const data = await res.json()
       if (data.status === 'ok') {
@@ -39,6 +44,33 @@ export function useAstrBotApi() {
       error.value = e.message || '连接失败'
       connected.value = false
       return false
+    }
+  }
+
+  function formatConnectionError(status, statusText, body) {
+    const message = extractResponseMessage(body)
+    if (status === 401) {
+      if (message === 'Invalid API key') {
+        return 'API Key 无效，请检查是否复制完整、没有多余空格，并确认以 abk_ 开头'
+      }
+      if (message === 'Missing API key') {
+        return '未发送 API Key，请重新填写并确认不是空值'
+      }
+      return `认证失败 (${status})：${message || statusText || '请检查 API Key'}`
+    }
+    if (status === 403) {
+      return `API Key 权限不足：${message || '请确认包含 chat/file 权限'}`
+    }
+    return `HTTP ${status}: ${message || statusText || '连接失败'}`
+  }
+
+  function extractResponseMessage(body) {
+    if (!body) return ''
+    try {
+      const data = JSON.parse(body)
+      return data?.message || body
+    } catch {
+      return body
     }
   }
 
@@ -169,70 +201,6 @@ export function useAstrBotApi() {
     return data.data
   }
 
-  async function speechToText(audioBlob, mimoApiKey) {
-    error.value = ''
-    if (!mimoApiKey) {
-      error.value = '未配置小米 API Key'
-      throw new Error(error.value)
-    }
-
-    try {
-      const formData = new FormData()
-      formData.append('file', audioBlob, 'audio.wav')
-      formData.append('model', 'whisper-1')
-
-      const res = await fetch('https://api.xiaoai.mi.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${mimoApiKey}` },
-        body: formData
-      })
-
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`STT 失败 (${res.status}): ${body}`)
-      }
-
-      const data = await res.json()
-      return (data.text || '').trim()
-    } catch (e) {
-      error.value = e.message
-      throw e
-    }
-  }
-
-  async function textToSpeech(text, mimoApiKey) {
-    error.value = ''
-    if (!mimoApiKey) {
-      error.value = '未配置小米 API Key'
-      throw new Error(error.value)
-    }
-
-    try {
-      const res = await fetch('https://api.xiaoai.mi.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${mimoApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'tts-1',
-          input: text,
-          voice: 'alloy'
-        })
-      })
-
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`TTS 失败 (${res.status}): ${body}`)
-      }
-
-      return await res.arrayBuffer()
-    } catch (e) {
-      error.value = e.message
-      throw e
-    }
-  }
-
   return {
     serverUrl: readonly(serverUrl),
     apiKey: readonly(apiKey),
@@ -245,8 +213,6 @@ export function useAstrBotApi() {
     connectWebSocket,
     sendMessage,
     disconnect,
-    uploadFile,
-    speechToText,
-    textToSpeech
+    uploadFile
   }
 }

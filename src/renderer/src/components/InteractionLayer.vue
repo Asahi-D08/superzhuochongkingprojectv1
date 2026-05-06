@@ -2,13 +2,13 @@
   <div class="interaction-layer">
     <!-- Idle: 整个区域可右键登录 -->
     <template v-if="state === 'idle'">
-      <div class="idle-overlay" @contextmenu.prevent="showLogin = true">
+      <div class="idle-overlay" @contextmenu.prevent="openLogin">
         <p class="hint">右键点击登录</p>
       </div>
       <LoginForm
         v-if="showLogin"
         @login="(data) => $emit('login', data)"
-        @close="showLogin = false"
+        @close="closeLogin"
       />
     </template>
 
@@ -25,14 +25,14 @@
           </button>
         </div>
         <div v-if="showMenu" class="context-menu">
-          <button @click="showHistory = true; showMenu = false">聊天记录</button>
+          <button @click="openHistory">聊天记录</button>
           <button @click="$emit('switch-skin'); showMenu = false">切换皮肤</button>
         </div>
       </div>
       <ChatHistory
         v-if="showHistory"
         :messages="messages"
-        @close="showHistory = false"
+        @close="closeHistory"
       />
     </template>
 
@@ -77,7 +77,16 @@ const props = defineProps({
   uploadFn: { type: Function, required: true }
 })
 
-const emit = defineEmits(['login', 'send', 'start-voice', 'stop-voice', 'cancel-voice', 'switch-skin'])
+const emit = defineEmits([
+  'login',
+  'send',
+  'start-voice',
+  'stop-voice',
+  'cancel-voice',
+  'switch-skin',
+  'modal-open',
+  'modal-close'
+])
 
 const showLogin = ref(false)
 const showHistory = ref(false)
@@ -95,8 +104,35 @@ function handleSend(payload) {
   emit('send', payload)
 }
 
+function openLogin() {
+  showLogin.value = true
+  emit('modal-open')
+}
+
+function closeLogin() {
+  showLogin.value = false
+  emit('modal-close')
+}
+
+function openHistory() {
+  showHistory.value = true
+  showMenu.value = false
+  emit('modal-open')
+}
+
+function closeHistory() {
+  showHistory.value = false
+  emit('modal-close')
+}
+
 watch(() => props.state, (newState) => {
   showMenu.value = false
+  if (newState !== 'idle' && showLogin.value) {
+    closeLogin()
+  }
+  if (newState !== 'standby' && showHistory.value) {
+    closeHistory()
+  }
 })
 
 // 仅在出现新的 bot 回复时展示「最后一条」气泡，避免每次回到 standby 都强制展开导致输入框被顶下去

@@ -1,6 +1,5 @@
 import { ref, readonly } from 'vue'
-
-const DASHSCOPE_BASE = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+import { encodeWav, mergeFloat32Chunks } from '../services/audio/wav.js'
 
 export function useVoice() {
   const isRecording = ref(false)
@@ -53,8 +52,7 @@ export function useVoice() {
       mediaStream = null
     }
 
-    // 合并 PCM 并转为 WAV Blob
-    const wavBlob = encodeWav(mergeChunks(recordedChunks), 16000)
+    const wavBlob = encodeWav(mergeFloat32Chunks(recordedChunks), 16000)
     recordedChunks = []
 
     if (audioContext) {
@@ -71,74 +69,6 @@ export function useVoice() {
     if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null }
     if (audioContext) { audioContext.close(); audioContext = null }
     recordedChunks = []
-  }
-
-  // ---- STT: DashScope Paraformer (OpenAI 兼容) ----
-
-  async function speechToText(wavBlob, apiKey) {
-    error.value = ''
-    if (!apiKey) {
-      error.value = '未配置 DashScope Key'
-      throw new Error(error.value)
-    }
-
-    const formData = new FormData()
-    formData.append('file', wavBlob, 'recording.wav')
-    formData.append('model', 'paraformer-realtime-v2')
-
-    try {
-      const res = await fetch(`${DASHSCOPE_BASE}/audio/transcriptions`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}` },
-        body: formData
-      })
-
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`STT 失败 (${res.status}): ${body}`)
-      }
-
-      const data = await res.json()
-      return (data.text || '').trim()
-    } catch (e) {
-      error.value = 'STT 错误: ' + e.message
-      throw e
-    }
-  }
-
-  // ---- TTS: DashScope CosyVoice (OpenAI 兼容) ----
-
-  async function textToSpeech(text, apiKey) {
-    error.value = ''
-    if (!apiKey) {
-      error.value = '未配置 DashScope Key'
-      throw new Error(error.value)
-    }
-
-    try {
-      const res = await fetch(`${DASHSCOPE_BASE}/audio/speech`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'cosyvoice-v1',
-          input: text,
-          voice: 'longxiaochun'
-        })
-      })
-
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`TTS 失败 (${res.status}): ${body}`)
-      }
-
-      return await res.arrayBuffer()
-    } catch (e) {
-      error.value = 'TTS 错误: ' + e.message
-      throw e
-    }
   }
 
   // ---- 播放音频 ----
@@ -159,61 +89,12 @@ export function useVoice() {
     })
   }
 
-  // ---- 工具函数 ----
-
-  function mergeChunks(chunks) {
-    const length = chunks.reduce((sum, c) => sum + c.length, 0)
-    const result = new Float32Array(length)
-    let offset = 0
-    for (const chunk of chunks) {
-      result.set(chunk, offset)
-      offset += chunk.length
-    }
-    return result
-  }
-
-  function encodeWav(samples, sampleRate) {
-    const buffer = new ArrayBuffer(44 + samples.length * 2)
-    const view = new DataView(buffer)
-
-    // WAV header
-    writeString(view, 0, 'RIFF')
-    view.setUint32(4, 36 + samples.length * 2, true)
-    writeString(view, 8, 'WAVE')
-    writeString(view, 12, 'fmt ')
-    view.setUint32(16, 16, true)
-    view.setUint16(20, 1, true) // PCM
-    view.setUint16(22, 1, true) // mono
-    view.setUint32(24, sampleRate, true)
-    view.setUint32(28, sampleRate * 2, true)
-    view.setUint16(32, 2, true)
-    view.setUint16(34, 16, true)
-    writeString(view, 36, 'data')
-    view.setUint32(40, samples.length * 2, true)
-
-    // PCM data
-    for (let i = 0; i < samples.length; i++) {
-      const s = Math.max(-1, Math.min(1, samples[i]))
-      view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
-    }
-
-    return new Blob([buffer], { type: 'audio/wav' })
-  }
-
-  function writeString(view, offset, str) {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i))
-    }
-  }
-
   return {
     isRecording: readonly(isRecording),
     error: readonly(error),
     startRecording,
     stopRecording,
     cancelRecording,
-    speechToText,
-    textToSpeech,
     playAudio
   }
 }

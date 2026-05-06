@@ -9,18 +9,20 @@
       :state="currentState"
       :messages="messages"
       :bot-output="botOutput"
-      :has-voice="!!mimoApiKey"
+      :has-voice="speechProvider.canTranscribe"
       :upload-fn="api.uploadFile"
       @login="handleLogin"
       @send="handleSend"
       @start-voice="handleStartVoice"
       @stop-voice="handleStopVoice"
       @cancel-voice="handleCancelVoice"
-      @switch-skin="showSkinSwitcher = true"
+      @switch-skin="openSkinSwitcher"
+      @modal-open="expandWindow"
+      @modal-close="restoreWindow"
     />
     <SkinSwitcher
       v-if="showSkinSwitcher"
-      @close="showSkinSwitcher = false"
+      @close="closeSkinSwitcher"
     />
   </div>
 </template>
@@ -33,6 +35,7 @@ import { useAstrBotApi } from './composables/useAstrBotApi.js'
 import { useChatHistory } from './composables/useChatHistory.js'
 import { useVoice } from './composables/useVoice.js'
 import { useSkinManager } from './skins/registry.js'
+import { createSpeechProvider } from './services/speechProviders/speechProviderFactory.js'
 import InteractionLayer from './components/InteractionLayer.vue'
 import SkinSwitcher from './components/SkinSwitcher.vue'
 
@@ -44,34 +47,64 @@ const voice = useVoice()
 
 const botOutput = ref('')
 const showSkinSwitcher = ref(false)
-const mimoApiKey = ref('')
+const speechProvider = ref(createSpeechProvider())
+
+const COMPACT_WINDOW = { width: 200, height: 220 }
+const MODAL_WINDOW = { width: 340, height: 360 }
 
 onMounted(async () => {
   loadHistory()
   loadSkin()
-  mimoApiKey.value = (await get('desktop-pet-mimo-key')) || ''
+  updateSpeechProvider()
 })
 
 onUnmounted(() => {
   api.disconnect()
 })
 
+// ---- 窗口尺寸 ----
+
+function expandWindow() {
+  window.electronAPI?.windowResize(MODAL_WINDOW.width, MODAL_WINDOW.height)
+}
+
+function restoreWindow() {
+  if (showSkinSwitcher.value) return
+  window.electronAPI?.windowResize(COMPACT_WINDOW.width, COMPACT_WINDOW.height)
+}
+
+function openSkinSwitcher() {
+  showSkinSwitcher.value = true
+  expandWindow()
+}
+
+function closeSkinSwitcher() {
+  showSkinSwitcher.value = false
+  restoreWindow()
+}
+
 // ---- 登录 ----
 
-async function handleLogin({ serverUrl, apiKey, mimoApiKey: mimoKey, onError, onSuccess }) {
+async function handleLogin({ serverUrl, apiKey, voiceApiKey: voiceKey, onError, onSuccess }) {
   api.setCredentials(serverUrl, apiKey)
   const ok = await api.testConnection()
   if (ok) {
     transition('LOGIN_SUCCESS')
     api.connectWebSocket(handleWsMessage, handleWsEnd)
-    if (mimoKey) {
-      mimoApiKey.value = mimoKey
-      await set('desktop-pet-mimo-key', mimoKey)
-    }
+    await set('desktop-pet-voice-key', voiceKey || '')
+    updateSpeechProvider()
     onSuccess?.()
   } else {
     onError?.(api.error.value || '连接失败')
   }
+}
+
+function updateSpeechProvider() {
+  speechProvider.value = createSpeechProvider({
+    provider: api.serverUrl.value && api.apiKey.value ? 'astrbot' : 'browser',
+    serverUrl: api.serverUrl.value,
+    apiKey: api.apiKey.value
+  })
 }
 
 // ---- 文本 / 多模态发送 ----
@@ -139,8 +172,14 @@ async function handleStopVoice() {
     transition('STOP_LISTENING')
     botOutput.value = '语音识别中...'
 
-    // STT via 小米 API
-    const text = await api.speechToText(wavBlob, mimoApiKey.value)
+    if (!speechProvider.value.canTranscribe) {
+      botOutput.value = '未配置语音识别服务'
+      addMessage('bot', botOutput.value)
+      transition('REPLY_COMPLETE')
+      return
+    }
+
+    const text = await speechProvider.value.transcribe(wavBlob)
     if (!text || text.trim() === '') {
       botOutput.value = '未识别到语音内容'
       addMessage('bot', botOutput.value)
@@ -159,7 +198,7 @@ async function handleStopVoice() {
     }
   } catch (err) {
     console.error('Voice error:', err)
-    botOutput.value = api.error.value || '语音处理失败'
+    botOutput.value = err?.message || '语音处理失败'
     addMessage('bot', botOutput.value)
     transition('REPLY_COMPLETE')
   }
@@ -188,11 +227,9 @@ async function handleWsEnd() {
     addMessage('bot', replyText)
   }
 
-  // TTS via 小米 API
-  if (mimoApiKey.value && replyText) {
+  if (replyText && speechProvider.value.canSpeak) {
     try {
-      const audio = await api.textToSpeech(replyText, mimoApiKey.value)
-      await voice.playAudio(audio)
+      await speechProvider.value.speak(replyText, { playAudio: voice.playAudio })
     } catch {
       // TTS 失败不影响主流程
     }
@@ -242,8 +279,8 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 #desktop-pet {
-  width: 200px;
-  height: 220px;
+  width: 100vw;
+  height: 100vh;
   position: relative;
   -webkit-app-region: no-drag;
 }
