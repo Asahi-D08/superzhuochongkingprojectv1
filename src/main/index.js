@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, screen, nativeImage, session, systemPreferences } from 'electron'
 import { join } from 'path'
 
 let mainWindow = null
@@ -105,8 +105,36 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
-app.whenReady().then(() => {
+async function setupMediaPermissions() {
+  // 麦克风/媒体设备权限：Electron 默认不授予，必须显式 grant，
+  // 否则渲染进程的 getUserMedia 会被默默拒绝
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'microphone' || permission === 'audioCapture') {
+      callback(true)
+      return
+    }
+    callback(false)
+  })
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'media' || permission === 'microphone' || permission === 'audioCapture'
+  })
+
+  // macOS：主动触发系统级 TCC 麦克风授权弹窗
+  if (process.platform === 'darwin') {
+    try {
+      const status = systemPreferences.getMediaAccessStatus('microphone')
+      if (status !== 'granted') {
+        await systemPreferences.askForMediaAccess('microphone')
+      }
+    } catch (err) {
+      console.warn('[mic] askForMediaAccess failed:', err)
+    }
+  }
+}
+
+app.whenReady().then(async () => {
   setupIPC()
+  await setupMediaPermissions()
   createWindow()
   createTray()
 })

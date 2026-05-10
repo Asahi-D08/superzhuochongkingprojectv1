@@ -1,10 +1,10 @@
 import { ref, readonly } from 'vue'
 import { get, set } from 'idb-keyval'
-import zhenhongChangfu from './zhenhong-changfu/index.js'
+import changfu from './changfu/index.js'
 
 const STORAGE_KEY = 'desktop-pet-skin'
 
-const allSkins = [zhenhongChangfu]
+const allSkins = [changfu]
 
 const currentSkin = ref(allSkins[0])
 

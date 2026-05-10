@@ -1,13 +1,18 @@
 {
   "name": "chaojizhuocongdawang",
   "version": "1.0.0",
-  "description": "",
+  "description": "桌面宠物 - AstrBot 客户端",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "postinstall": "electron-builder install-app-deps",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:mac:arm": "npm run build && electron-builder --mac --arm64",
+    "build:mac:x64": "npm run build && electron-builder --mac --x64",
+    "build:mac:universal": "npm run build && electron-builder --mac --universal"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +21,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "electron-vite": "^5.0.0",
     "jsdom": "^29.1.1",
     "vite": "^7.3.1",
@@ -24,5 +30,43 @@
   "dependencies": {
     "idb-keyval": "^6.2.2",
     "vue": "^3.5.30"
+  },
+  "build": {
+    "appId": "com.astrdev.chaojizhuocongdawang",
+    "productName": "超级桌宠大王",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "需要使用麦克风进行语音输入与识别",
+        "NSCameraUsageDescription": "用于摄像头相关功能（如未使用可忽略）",
+        "LSUIElement": false
+      }
+    },
+    "dmg": {
+      "title": "超级桌宠大王 ${version}",
+      "writeUpdateInfo": false
+    }
   }
 }

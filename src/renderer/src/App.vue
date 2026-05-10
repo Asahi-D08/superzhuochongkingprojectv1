@@ -5,11 +5,11 @@
     @mousedown="startDrag"
     @contextmenu.prevent
   >
-    <component :is="currentSkin.component" :state="currentState" />
+    <component :is="currentSkin.component" :state="currentState" :emotion="currentEmotion" />
     <InteractionLayer
       :state="currentState"
       :messages="messages"
-      :bot-output="botOutput"
+      :bot-output="cleanedBotOutput"
       :has-voice="speechProvider.canTranscribe"
       :upload-fn="api.uploadFile"
       @login="handleLogin"
@@ -43,6 +43,7 @@ import { useVoice } from './composables/useVoice.js'
 import { useSkinManager } from './skins/registry.js'
 import { useSettings } from './composables/useSettings.js'
 import { createSpeechProvider } from './services/speechProviders/speechProviderFactory.js'
+import { parseLastEmotion, stripEmotionTags } from './services/emotion.js'
 import InteractionLayer from './components/InteractionLayer.vue'
 import SkinSwitcher from './components/SkinSwitcher.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
@@ -58,6 +59,10 @@ const botOutput = ref('')
 const showSkinSwitcher = ref(false)
 const showSettings = ref(false)
 const speechProvider = ref(createSpeechProvider())
+
+// 从 botOutput 解析出当前情绪 + 去掉情绪标签后的纯净文本（给 UI / 历史 / TTS 用）
+const cleanedBotOutput = computed(() => stripEmotionTags(botOutput.value))
+const currentEmotion = computed(() => parseLastEmotion(botOutput.value) || '平静')
 
 const MODAL_WINDOW = { width: 340, height: 360 }
 
@@ -217,8 +222,15 @@ async function handleStartVoice() {
   try {
     await voice.startRecording()
     transition('START_LISTENING')
-  } catch {
-    // 麦克风权限拒绝等
+  } catch (err) {
+    console.error('[voice] startRecording failed:', err)
+    const reason = err?.name === 'NotAllowedError'
+      ? '麦克风权限被拒绝，请到「系统设置 → 隐私与安全性 → 麦克风」中允许 Electron / 本应用'
+      : err?.name === 'NotFoundError'
+        ? '未检测到可用麦克风设备'
+        : (err?.message || '无法启动麦克风')
+    botOutput.value = reason
+    addMessage('bot', reason)
   }
 }
 
@@ -278,7 +290,8 @@ function handleWsMessage(data) {
 }
 
 async function handleWsEnd() {
-  const replyText = botOutput.value
+  // 历史 / TTS 都用去掉 <情绪> 标签后的纯文本，否则会出现"小于号开心大于号"被念出来
+  const replyText = stripEmotionTags(botOutput.value)
   if (replyText) {
     addMessage('bot', replyText)
   }
