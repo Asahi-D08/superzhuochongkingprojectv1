@@ -37,50 +37,7 @@
           />
         </div>
 
-        <div class="setting-section-title">语音合成</div>
-
-        <div class="setting-item">
-          <div class="setting-label">
-            <span>TTS 来源</span>
-          </div>
-          <select
-            class="setting-select"
-            :value="ttsProvider"
-            @change="setTtsProvider($event.target.value)"
-          >
-            <option value="auto">自动（AstrBot / 浏览器）</option>
-            <option value="cosyvoice">CosyVoice 本地（局域网）</option>
-            <option value="browser">仅浏览器内置</option>
-          </select>
-        </div>
-
-        <template v-if="ttsProvider === 'cosyvoice'">
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>WebSocket 地址</span>
-            </div>
-            <input
-              type="text"
-              class="setting-input"
-              :value="cosyWsUrl"
-              placeholder="ws://192.168.x.x:8765/ws/tts"
-              @change="setCosyWsUrl($event.target.value)"
-            />
-          </div>
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>说话人 ID</span>
-            </div>
-            <input
-              type="text"
-              class="setting-input"
-              :value="cosySpk"
-              placeholder="0000040.wav_0000000000_0000171840"
-              @change="setCosySpk($event.target.value)"
-            />
-            <div class="setting-hint">服务端 spk2info.pt 中已 enroll 的 ID</div>
-          </div>
-        </template>
+        <p class="settings-note">语音合成 / TTS 设置在登录窗口里配置。</p>
       </div>
 
       <div class="settings-footer">
@@ -97,14 +54,8 @@ defineEmits(['close'])
 const {
   characterSize,
   textBoxHeight,
-  ttsProvider,
-  cosyWsUrl,
-  cosySpk,
   setCharacterSize,
   setTextBoxHeight,
-  setTtsProvider,
-  setCosyWsUrl,
-  setCosySpk,
   resetDefaults
 } = useSettings()
 </script>
@@ -122,9 +73,7 @@ const {
 .settings-panel {
   background: #fff;
   border-radius: 12px;
-  width: 280px;
-  max-height: 90vh;
-  overflow-y: auto;
+  width: 240px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 .settings-header {
@@ -169,18 +118,13 @@ const {
   color: #6A5ACD;
   font-weight: 600;
 }
-.setting-section-title {
-  margin: 16px 0 8px;
-  padding-top: 8px;
+.settings-note {
+  margin: 10px 0 0;
+  padding-top: 10px;
   border-top: 1px solid #eee;
-  font-size: 12px;
-  color: #888;
-  font-weight: 600;
-}
-.setting-hint {
-  margin-top: 4px;
   font-size: 11px;
   color: #999;
+  line-height: 1.4;
 }
 
 input[type="range"] {
@@ -200,21 +144,6 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-.setting-input,
-.setting-select {
-  width: 100%;
-  padding: 6px 8px;
-  font-size: 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  outline: none;
-  color: #333;
-  background: #fff;
-}
-.setting-input:focus,
-.setting-select:focus {
-  border-color: #6A5ACD;
 }
 
 .settings-footer {
