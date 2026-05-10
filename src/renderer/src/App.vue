@@ -44,6 +44,7 @@ import { useSkinManager } from './skins/registry.js'
 import { useSettings } from './composables/useSettings.js'
 import { createSpeechProvider } from './services/speechProviders/speechProviderFactory.js'
 import { parseLastEmotion, stripEmotionTags } from './services/emotion.js'
+import { useTtsStream } from './composables/useTtsStream.js'
 import InteractionLayer from './components/InteractionLayer.vue'
 import SkinSwitcher from './components/SkinSwitcher.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
@@ -52,13 +53,22 @@ const { currentState, transition } = useStateMachine()
 const api = useAstrBotApi()
 const { messages, loadHistory, addMessage } = useChatHistory()
 const { currentSkin, load: loadSkin } = useSkinManager()
-const { characterSize, textBoxHeight, load: loadSettings } = useSettings()
+const {
+  characterSize,
+  textBoxHeight,
+  ttsProvider,
+  cosyWsUrl,
+  cosySpk,
+  load: loadSettings
+} = useSettings()
 const voice = useVoice()
+const ttsStream = useTtsStream({ playAudio: voice.playAudio })
 
 const botOutput = ref('')
 const showSkinSwitcher = ref(false)
 const showSettings = ref(false)
 const speechProvider = ref(createSpeechProvider())
+let activeStreamSession = null
 
 // 从 botOutput 解析出当前情绪 + 去掉情绪标签后的纯净文本（给 UI / 历史 / TTS 用）
 const cleanedBotOutput = computed(() => stripEmotionTags(botOutput.value))
@@ -161,12 +171,33 @@ async function handleLogin({ serverUrl, apiKey, sessionId, voiceApiKey: voiceKey
 }
 
 function updateSpeechProvider() {
+  const wantsCosy = ttsProvider.value === 'cosyvoice'
+  const wantsBrowserOnly = ttsProvider.value === 'browser'
+  const cosyConfig = {
+    wsUrl: cosyWsUrl.value,
+    spk: cosySpk.value
+  }
+  let providerId
+  if (wantsCosy && cosyConfig.wsUrl && cosyConfig.spk) {
+    providerId = 'cosyvoice'
+  } else if (wantsBrowserOnly) {
+    providerId = 'browser'
+  } else if (api.serverUrl.value && api.apiKey.value) {
+    providerId = 'astrbot'
+  } else {
+    providerId = 'browser'
+  }
   speechProvider.value = createSpeechProvider({
-    provider: api.serverUrl.value && api.apiKey.value ? 'astrbot' : 'browser',
+    provider: providerId,
     serverUrl: api.serverUrl.value,
-    apiKey: api.apiKey.value
+    apiKey: api.apiKey.value,
+    cosyvoice: cosyConfig
   })
 }
+
+watch([ttsProvider, cosyWsUrl, cosySpk], () => {
+  updateSpeechProvider()
+})
 
 // ---- 文本 / 多模态发送 ----
 
@@ -179,6 +210,10 @@ function updateSpeechProvider() {
  *   - 带图片 -> 传 message parts 数组 [{type:'plain',text},{type:'image',attachment_id}...]
  */
 function handleSend(payload) {
+  // 用户发新消息时，立即打断上一回合还没播完的语音
+  ttsStream.abort()
+  activeStreamSession = null
+
   // 兼容老签名：如果父组件还在传字符串就包一层
   const { text, attachments } = typeof payload === 'string'
     ? { text: payload, attachments: [] }
@@ -280,20 +315,42 @@ function handleCancelVoice() {
 // ---- WebSocket 消息 ----
 
 function handleWsMessage(data) {
-  if (data.type === 'plain' && data.data) {
-    if (data.streaming) {
-      botOutput.value += data.data
-    } else {
-      botOutput.value = data.data
-    }
+  if (data.type !== 'plain' || !data.data) return
+  if (data.streaming) {
+    botOutput.value += data.data
+  } else {
+    botOutput.value = data.data
   }
+
+  // 仅当 provider 是 cosyvoice 且支持 createStream 时，把【带情绪标签的原始 chunks】
+  // 流式喂给服务端，由 server 端 EmotionParser/SentenceBuffer 按句切分并按情绪合成。
+  // 注意：botOutput 仍累积原始文本，由 cleanedBotOutput / currentEmotion computed
+  // 给 UI 和 skin 提供已剥标签的版本和当前情绪，二者互不干扰。
+  const provider = speechProvider.value
+  if (provider.id !== 'cosyvoice' || typeof provider.createStream !== 'function') return
+
+  if (!activeStreamSession) {
+    activeStreamSession = ttsStream.start(provider, {
+      onError: (err) => console.warn('[tts stream] error:', err)
+    })
+  }
+  ttsStream.appendText(data.data)
 }
 
 async function handleWsEnd() {
-  // 历史 / TTS 都用去掉 <情绪> 标签后的纯文本，否则会出现"小于号开心大于号"被念出来
+  // 历史 / 非流式 TTS 都用去掉 <情绪> 标签后的纯文本，否则会出现"小于号开心大于号"被念出来
   const replyText = stripEmotionTags(botOutput.value)
   if (replyText) {
     addMessage('bot', replyText)
+  }
+
+  if (activeStreamSession) {
+    try { await ttsStream.end() } catch {
+      // 流式 TTS 失败不影响主流程
+    }
+    activeStreamSession = null
+    transition('REPLY_COMPLETE')
+    return
   }
 
   if (replyText && speechProvider.value.canSpeak) {
