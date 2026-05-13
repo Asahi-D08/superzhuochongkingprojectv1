@@ -141,7 +141,12 @@ export function useAstrBotApi() {
     }, delay)
   }
 
-  function sendMessage(message) {
+  /**
+   * 发送消息。
+   * @param {string|Array} message - AstrBot Open API 的 message 字段
+   * @param {object} [extras] - 透传到 payload 顶层的可选额外字段（如 { action_type: 'live' }）
+   */
+  function sendMessage(message, extras) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       error.value = 'WebSocket 未连接'
       return false
@@ -153,6 +158,11 @@ export function useAstrBotApi() {
       username: username.value,
       session_id: sessionId.value ? sessionId.value : undefined,
       enable_streaming: true
+    }
+    if (extras) {
+      for (const [k, v] of Object.entries(extras)) {
+        if (v !== undefined && v !== null && v !== '') payload[k] = v
+      }
     }
 
     ws.send(JSON.stringify(payload))

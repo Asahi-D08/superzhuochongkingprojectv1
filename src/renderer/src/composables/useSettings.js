@@ -3,21 +3,15 @@ import { get, set } from 'idb-keyval'
 
 const CHAR_SIZE_KEY = 'desktop-pet-character-size'
 const TEXTBOX_KEY = 'desktop-pet-textbox-height'
-const TTS_PROVIDER_KEY = 'desktop-pet-tts-provider'
-const COSY_WS_URL_KEY = 'desktop-pet-cosyvoice-ws-url'
-const COSY_SPK_KEY = 'desktop-pet-cosyvoice-spk'
+const VOICE_ENABLED_KEY = 'desktop-pet-voice-enabled'
 
 const DEFAULT_CHAR_SIZE = 180
 const DEFAULT_TEXTBOX_HEIGHT = 52
-const DEFAULT_TTS_PROVIDER = 'auto'
-const DEFAULT_COSY_WS_URL = ''
-const DEFAULT_COSY_SPK = ''
+const DEFAULT_VOICE_ENABLED = false
 
 const characterSize = ref(DEFAULT_CHAR_SIZE)
 const textBoxHeight = ref(DEFAULT_TEXTBOX_HEIGHT)
-const ttsProvider = ref(DEFAULT_TTS_PROVIDER)
-const cosyWsUrl = ref(DEFAULT_COSY_WS_URL)
-const cosySpk = ref(DEFAULT_COSY_SPK)
+const voiceEnabled = ref(DEFAULT_VOICE_ENABLED)
 
 export function useSettings() {
   async function load() {
@@ -25,12 +19,8 @@ export function useSettings() {
     if (savedChar != null) characterSize.value = savedChar
     const savedText = await get(TEXTBOX_KEY)
     if (savedText != null) textBoxHeight.value = savedText
-    const savedTts = await get(TTS_PROVIDER_KEY)
-    if (savedTts != null) ttsProvider.value = savedTts
-    const savedCosyUrl = await get(COSY_WS_URL_KEY)
-    if (savedCosyUrl != null) cosyWsUrl.value = savedCosyUrl
-    const savedCosySpk = await get(COSY_SPK_KEY)
-    if (savedCosySpk != null) cosySpk.value = savedCosySpk
+    const savedVoice = await get(VOICE_ENABLED_KEY)
+    if (savedVoice != null) voiceEnabled.value = Boolean(savedVoice)
   }
 
   function setCharacterSize(val) {
@@ -43,40 +33,25 @@ export function useSettings() {
     set(TEXTBOX_KEY, val)
   }
 
-  function setTtsProvider(val) {
-    ttsProvider.value = val || DEFAULT_TTS_PROVIDER
-    set(TTS_PROVIDER_KEY, ttsProvider.value)
-  }
-
-  function setCosyWsUrl(val) {
-    cosyWsUrl.value = (val || '').trim()
-    set(COSY_WS_URL_KEY, cosyWsUrl.value)
-  }
-
-  function setCosySpk(val) {
-    cosySpk.value = (val || '').trim()
-    set(COSY_SPK_KEY, cosySpk.value)
+  function setVoiceEnabled(val) {
+    const v = Boolean(val)
+    voiceEnabled.value = v
+    set(VOICE_ENABLED_KEY, v)
   }
 
   function resetDefaults() {
     setCharacterSize(DEFAULT_CHAR_SIZE)
     setTextBoxHeight(DEFAULT_TEXTBOX_HEIGHT)
-    setTtsProvider(DEFAULT_TTS_PROVIDER)
-    setCosyWsUrl(DEFAULT_COSY_WS_URL)
-    setCosySpk(DEFAULT_COSY_SPK)
+    setVoiceEnabled(DEFAULT_VOICE_ENABLED)
   }
 
   return {
     characterSize: readonly(characterSize),
     textBoxHeight: readonly(textBoxHeight),
-    ttsProvider: readonly(ttsProvider),
-    cosyWsUrl: readonly(cosyWsUrl),
-    cosySpk: readonly(cosySpk),
+    voiceEnabled: readonly(voiceEnabled),
     setCharacterSize,
     setTextBoxHeight,
-    setTtsProvider,
-    setCosyWsUrl,
-    setCosySpk,
+    setVoiceEnabled,
     resetDefaults,
     load
   }

@@ -77,4 +77,56 @@ describe('useAstrBotApi', () => {
       enable_streaming: true
     }))
   })
+
+  it('forwards extras (e.g. action_type:live) into the payload when provided', () => {
+    const send = vi.fn()
+    class FakeWebSocket {
+      static OPEN = 1
+      constructor() { this.readyState = FakeWebSocket.OPEN; this.send = send }
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    const api = useAstrBotApi()
+    api.setCredentials('https://astrbot.losingfire.com', 'abk_x')
+    api.setSessionId('abc')
+    api.connectWebSocket()
+
+    api.sendMessage('こんにちは', { action_type: 'live' })
+
+    expect(send).toHaveBeenCalledWith(JSON.stringify({
+      t: 'send',
+      message: 'こんにちは',
+      username: 'desktop-pet-user',
+      session_id: 'abc',
+      enable_streaming: true,
+      action_type: 'live'
+    }))
+  })
+
+  it('ignores empty/null fields in extras (keeps payload clean)', () => {
+    const send = vi.fn()
+    class FakeWebSocket {
+      static OPEN = 1
+      constructor() { this.readyState = FakeWebSocket.OPEN; this.send = send }
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+
+    const api = useAstrBotApi()
+    api.setCredentials('https://astrbot.losingfire.com', 'abk_x')
+    api.setSessionId('abc')
+    api.connectWebSocket()
+
+    api.sendMessage('hi', { action_type: null, ignored: '', kept: 'yes' })
+
+    expect(send).toHaveBeenCalledWith(JSON.stringify({
+      t: 'send',
+      message: 'hi',
+      username: 'desktop-pet-user',
+      session_id: 'abc',
+      enable_streaming: true,
+      kept: 'yes'
+    }))
+  })
 })

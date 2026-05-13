@@ -10,13 +10,10 @@
       :state="currentState"
       :messages="messages"
       :bot-output="cleanedBotOutput"
-      :has-voice="speechProvider.canTranscribe"
       :upload-fn="api.uploadFile"
+      :is-speaking="isSpeaking"
       @login="handleLogin"
       @send="handleSend"
-      @start-voice="handleStartVoice"
-      @stop-voice="handleStopVoice"
-      @cancel-voice="handleCancelVoice"
       @switch-skin="openSkinSwitcher"
       @open-settings="openSettings"
       @modal-open="expandWindow"
@@ -35,16 +32,13 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { set } from 'idb-keyval'
 import { useStateMachine } from './composables/useStateMachine.js'
 import { useAstrBotApi } from './composables/useAstrBotApi.js'
 import { useChatHistory } from './composables/useChatHistory.js'
-import { useVoice } from './composables/useVoice.js'
 import { useSkinManager } from './skins/registry.js'
 import { useSettings } from './composables/useSettings.js'
-import { createSpeechProvider } from './services/speechProviders/speechProviderFactory.js'
 import { parseLastEmotion, stripEmotionTags } from './services/emotion.js'
-import { useTtsStream } from './composables/useTtsStream.js'
+import { AudioStreamPlayer } from './services/audioStreamPlayer.js'
 import InteractionLayer from './components/InteractionLayer.vue'
 import SkinSwitcher from './components/SkinSwitcher.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
@@ -53,24 +47,20 @@ const { currentState, transition } = useStateMachine()
 const api = useAstrBotApi()
 const { messages, loadHistory, addMessage } = useChatHistory()
 const { currentSkin, load: loadSkin } = useSkinManager()
-const {
-  characterSize,
-  textBoxHeight,
-  ttsProvider,
-  cosyWsUrl,
-  cosySpk,
-  load: loadSettings
-} = useSettings()
-const voice = useVoice()
-const ttsStream = useTtsStream({ playAudio: voice.playAudio })
+const { characterSize, textBoxHeight, voiceEnabled, load: loadSettings } = useSettings()
 
 const botOutput = ref('')
 const showSkinSwitcher = ref(false)
 const showSettings = ref(false)
-const speechProvider = ref(createSpeechProvider())
-let activeStreamSession = null
+const isSpeaking = ref(false)
 
-// 从 botOutput 解析出当前情绪 + 去掉情绪标签后的纯净文本（给 UI / 历史 / TTS 用）
+// 共享单例：所有 audio_chunk 帧入队这个 player，连续播放
+const audioPlayer = new AudioStreamPlayer({
+  onSpeakingChange: (s) => { isSpeaking.value = s },
+  onError: (err, ctx) => console.warn(`[audio] ${ctx || ''}`, err)
+})
+
+// 从 botOutput 解析出当前情绪 + 去掉情绪标签后的纯净文本（给 UI / 历史用）
 const cleanedBotOutput = computed(() => stripEmotionTags(botOutput.value))
 const currentEmotion = computed(() => parseLastEmotion(botOutput.value) || '平静')
 
@@ -109,12 +99,12 @@ watch([characterSize, textBoxHeight], () => {
 onMounted(() => {
   loadHistory()
   loadSkin()
-  updateSpeechProvider()
   loadSettings().then(restoreWindow)
 })
 
 onUnmounted(() => {
   api.disconnect()
+  audioPlayer.dispose().catch(() => {})
 })
 
 // ---- 窗口尺寸 ----
@@ -155,49 +145,18 @@ function closeSettings() {
 
 // ---- 登录 ----
 
-async function handleLogin({ serverUrl, apiKey, sessionId, voiceApiKey: voiceKey, onError, onSuccess }) {
+async function handleLogin({ serverUrl, apiKey, sessionId, onError, onSuccess }) {
   api.setCredentials(serverUrl, apiKey)
   api.setSessionId(sessionId)
   const ok = await api.testConnection()
   if (ok) {
     transition('LOGIN_SUCCESS')
     api.connectWebSocket(handleWsMessage, handleWsEnd)
-    await set('desktop-pet-voice-key', voiceKey || '')
-    updateSpeechProvider()
     onSuccess?.()
   } else {
     onError?.(api.error.value || '连接失败')
   }
 }
-
-function updateSpeechProvider() {
-  const wantsCosy = ttsProvider.value === 'cosyvoice'
-  const wantsBrowserOnly = ttsProvider.value === 'browser'
-  const cosyConfig = {
-    wsUrl: cosyWsUrl.value,
-    spk: cosySpk.value
-  }
-  let providerId
-  if (wantsCosy && cosyConfig.wsUrl && cosyConfig.spk) {
-    providerId = 'cosyvoice'
-  } else if (wantsBrowserOnly) {
-    providerId = 'browser'
-  } else if (api.serverUrl.value && api.apiKey.value) {
-    providerId = 'astrbot'
-  } else {
-    providerId = 'browser'
-  }
-  speechProvider.value = createSpeechProvider({
-    provider: providerId,
-    serverUrl: api.serverUrl.value,
-    apiKey: api.apiKey.value,
-    cosyvoice: cosyConfig
-  })
-}
-
-watch([ttsProvider, cosyWsUrl, cosySpk], () => {
-  updateSpeechProvider()
-})
 
 // ---- 文本 / 多模态发送 ----
 
@@ -210,10 +169,6 @@ watch([ttsProvider, cosyWsUrl, cosySpk], () => {
  *   - 带图片 -> 传 message parts 数组 [{type:'plain',text},{type:'image',attachment_id}...]
  */
 function handleSend(payload) {
-  // 用户发新消息时，立即打断上一回合还没播完的语音
-  ttsStream.abort()
-  activeStreamSession = null
-
   // 兼容老签名：如果父组件还在传字符串就包一层
   const { text, attachments } = typeof payload === 'string'
     ? { text: payload, attachments: [] }
@@ -241,8 +196,12 @@ function handleSend(payload) {
   }
 
   botOutput.value = ''
+  // 新一轮：打断上一轮可能还在播的音频
+  audioPlayer.abort()
+
   transition('SEND_MESSAGE')
-  if (!api.sendMessage(messageField)) {
+  const extras = voiceEnabled.value ? { action_type: 'live' } : undefined
+  if (!api.sendMessage(messageField, extras)) {
     botOutput.value = '发送失败：WebSocket 未连接'
     setTimeout(() => {
       if (botOutput.value) addMessage('bot', botOutput.value)
@@ -251,117 +210,33 @@ function handleSend(payload) {
   }
 }
 
-// ---- 语音 ----
-
-async function handleStartVoice() {
-  try {
-    await voice.startRecording()
-    transition('START_LISTENING')
-  } catch (err) {
-    console.error('[voice] startRecording failed:', err)
-    const reason = err?.name === 'NotAllowedError'
-      ? '麦克风权限被拒绝，请到「系统设置 → 隐私与安全性 → 麦克风」中允许 Electron / 本应用'
-      : err?.name === 'NotFoundError'
-        ? '未检测到可用麦克风设备'
-        : (err?.message || '无法启动麦克风')
-    botOutput.value = reason
-    addMessage('bot', reason)
-  }
-}
-
-async function handleStopVoice() {
-  try {
-    const wavBlob = await voice.stopRecording()
-    transition('STOP_LISTENING')
-    botOutput.value = '语音识别中...'
-
-    if (!speechProvider.value.canTranscribe) {
-      botOutput.value = '未配置语音识别服务'
-      addMessage('bot', botOutput.value)
-      transition('REPLY_COMPLETE')
-      return
-    }
-
-    const text = await speechProvider.value.transcribe(wavBlob)
-    if (!text || text.trim() === '') {
-      botOutput.value = '未识别到语音内容'
-      addMessage('bot', botOutput.value)
-      transition('REPLY_COMPLETE')
-      return
-    }
-
-    // 发送识别出的文本
-    addMessage('user', text)
-    botOutput.value = ''
-    transition('SEND_MESSAGE')
-    if (!api.sendMessage(text)) {
-      botOutput.value = '发送失败：WebSocket 未连接'
-      addMessage('bot', botOutput.value)
-      transition('REPLY_COMPLETE')
-    }
-  } catch (err) {
-    console.error('Voice error:', err)
-    botOutput.value = err?.message || '语音处理失败'
-    addMessage('bot', botOutput.value)
-    transition('REPLY_COMPLETE')
-  }
-}
-
-function handleCancelVoice() {
-  voice.cancelRecording()
-  transition('CANCEL_LISTENING')
-}
-
 // ---- WebSocket 消息 ----
 
 function handleWsMessage(data) {
+  if (data.type === 'audio_chunk') {
+    // AstrBot live mode 推送的 TTS 音频帧（base64 wav）
+    if (voiceEnabled.value && data.data) {
+      audioPlayer.enqueueBase64Wav(data.data)
+    }
+    // audio_chunk 里 data.text 是同帧文本（CosyVoice 合成的句子原文），
+    // 不要 += 到 botOutput —— 否则会和 plain 帧重复。
+    return
+  }
   if (data.type !== 'plain' || !data.data) return
   if (data.streaming) {
     botOutput.value += data.data
   } else {
     botOutput.value = data.data
   }
-
-  // 仅当 provider 是 cosyvoice 且支持 createStream 时，把【带情绪标签的原始 chunks】
-  // 流式喂给服务端，由 server 端 EmotionParser/SentenceBuffer 按句切分并按情绪合成。
-  // 注意：botOutput 仍累积原始文本，由 cleanedBotOutput / currentEmotion computed
-  // 给 UI 和 skin 提供已剥标签的版本和当前情绪，二者互不干扰。
-  const provider = speechProvider.value
-  if (provider.id !== 'cosyvoice' || typeof provider.createStream !== 'function') return
-
-  if (!activeStreamSession) {
-    activeStreamSession = ttsStream.start(provider, {
-      onError: (err) => console.warn('[tts stream] error:', err)
-    })
-  }
-  ttsStream.appendText(data.data)
 }
 
-async function handleWsEnd() {
-  // 历史 / 非流式 TTS 都用去掉 <情绪> 标签后的纯文本，否则会出现"小于号开心大于号"被念出来
+function handleWsEnd() {
   const replyText = stripEmotionTags(botOutput.value)
   if (replyText) {
     addMessage('bot', replyText)
   }
-
-  if (activeStreamSession) {
-    try { await ttsStream.end() } catch {
-      // 流式 TTS 失败不影响主流程
-    }
-    activeStreamSession = null
-    transition('REPLY_COMPLETE')
-    return
-  }
-
-  if (replyText && speechProvider.value.canSpeak) {
-    try {
-      await speechProvider.value.speak(replyText, { playAudio: voice.playAudio })
-    } catch {
-      // TTS 失败不影响主流程
-    }
-  }
-
   transition('REPLY_COMPLETE')
+  // 音频继续播放直到队列空（player.onSpeakingChange 会自动翻 isSpeaking 回 false）
 }
 
 // ---- 拖拽 ----

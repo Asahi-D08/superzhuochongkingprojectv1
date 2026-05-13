@@ -37,7 +37,22 @@
           />
         </div>
 
-        <p class="settings-note">语音合成 / TTS 设置在登录窗口里配置。</p>
+        <div class="setting-item setting-toggle">
+          <div class="setting-label">
+            <span>启用语音</span>
+            <label class="toggle">
+              <input
+                type="checkbox"
+                :checked="voiceEnabled"
+                @change="setVoiceEnabled($event.target.checked)"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-hint">
+            使用系统自带日语语音朗读回复，无需联网。
+          </div>
+        </div>
       </div>
 
       <div class="settings-footer">
@@ -54,8 +69,10 @@ defineEmits(['close'])
 const {
   characterSize,
   textBoxHeight,
+  voiceEnabled,
   setCharacterSize,
   setTextBoxHeight,
+  setVoiceEnabled,
   resetDefaults
 } = useSettings()
 </script>
@@ -118,15 +135,6 @@ const {
   color: #6A5ACD;
   font-weight: 600;
 }
-.settings-note {
-  margin: 10px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid #eee;
-  font-size: 11px;
-  color: #999;
-  line-height: 1.4;
-}
-
 input[type="range"] {
   -webkit-appearance: none;
   width: 100%;
@@ -163,5 +171,51 @@ input[type="range"]::-webkit-slider-thumb {
 .btn-reset:hover {
   border-color: #6A5ACD;
   color: #6A5ACD;
+}
+
+.setting-toggle .setting-label {
+  margin-bottom: 4px;
+}
+.setting-hint {
+  font-size: 11px;
+  color: #999;
+  line-height: 1.4;
+}
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+}
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background-color: #ddd;
+  border-radius: 18px;
+  transition: 0.2s;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  top: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.toggle input:checked + .toggle-slider {
+  background-color: #6A5ACD;
+}
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(16px);
 }
 </style>
