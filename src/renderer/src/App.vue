@@ -10,6 +10,7 @@
       :state="currentState"
       :messages="messages"
       :bot-output="cleanedBotOutput"
+      :debug-mode="debugMode"
       :upload-fn="api.uploadFile"
       :is-speaking="isSpeaking"
       @login="handleLogin"
@@ -37,7 +38,7 @@ import { useAstrBotApi } from './composables/useAstrBotApi.js'
 import { useChatHistory } from './composables/useChatHistory.js'
 import { useSkinManager } from './skins/registry.js'
 import { useSettings } from './composables/useSettings.js'
-import { parseLastEmotion, stripEmotionTags } from './services/emotion.js'
+import { parseLastEmotion, formatBotDisplayText } from './services/emotion.js'
 import { AudioStreamPlayer } from './services/audioStreamPlayer.js'
 import InteractionLayer from './components/InteractionLayer.vue'
 import SkinSwitcher from './components/SkinSwitcher.vue'
@@ -47,9 +48,12 @@ const { currentState, transition } = useStateMachine()
 const api = useAstrBotApi()
 const { messages, loadHistory, addMessage } = useChatHistory()
 const { currentSkin, load: loadSkin } = useSkinManager()
-const { characterSize, textBoxHeight, voiceEnabled, load: loadSettings } = useSettings()
+const { characterSize, textBoxHeight, voiceEnabled, debugMode, replyTimeout, load: loadSettings } = useSettings()
 
 const botOutput = ref('')
+// 本轮是否仍在等待 bot 回复（用于防止超时结束后迟到的帧重复写入历史）
+let awaitingReply = false
+let replyTimeoutTimer = null
 const showSkinSwitcher = ref(false)
 const showSettings = ref(false)
 const isSpeaking = ref(false)
@@ -60,8 +64,10 @@ const audioPlayer = new AudioStreamPlayer({
   onError: (err, ctx) => console.warn(`[audio] ${ctx || ''}`, err)
 })
 
-// 从 botOutput 解析出当前情绪 + 去掉情绪标签后的纯净文本（给 UI / 历史用）
-const cleanedBotOutput = computed(() => stripEmotionTags(botOutput.value))
+// 从 botOutput 解析情绪；展示文本受调试开关控制
+const cleanedBotOutput = computed(() =>
+  formatBotDisplayText(botOutput.value, { debug: debugMode.value })
+)
 const currentEmotion = computed(() => parseLastEmotion(botOutput.value) || '平静')
 
 const MODAL_WINDOW = { width: 340, height: 360 }
@@ -103,6 +109,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearReplyTimeout()
   api.disconnect()
   audioPlayer.dispose().catch(() => {})
 })
@@ -200,8 +207,12 @@ function handleSend(payload) {
   audioPlayer.abort()
 
   transition('SEND_MESSAGE')
+  awaitingReply = true
+  startReplyTimeout()
   const extras = voiceEnabled.value ? { action_type: 'live' } : undefined
   if (!api.sendMessage(messageField, extras)) {
+    clearReplyTimeout()
+    awaitingReply = false
     botOutput.value = '发送失败：WebSocket 未连接'
     setTimeout(() => {
       if (botOutput.value) addMessage('bot', botOutput.value)
@@ -210,10 +221,48 @@ function handleSend(payload) {
   }
 }
 
+// ---- 无回复超时：超过设定时长仍无新数据则自动结束本轮 ----
+
+function startReplyTimeout() {
+  clearReplyTimeout()
+  const seconds = replyTimeout.value
+  if (!seconds || seconds <= 0) return
+  replyTimeoutTimer = setTimeout(onReplyTimeout, seconds * 1000)
+}
+
+// 收到任意回复数据时重置计时（仅针对“持续无响应”做兜底，不打断进行中的回复）
+function bumpReplyTimeout() {
+  if (!awaitingReply) return
+  startReplyTimeout()
+}
+
+function clearReplyTimeout() {
+  if (replyTimeoutTimer) {
+    clearTimeout(replyTimeoutTimer)
+    replyTimeoutTimer = null
+  }
+}
+
+function onReplyTimeout() {
+  if (!awaitingReply) return
+  awaitingReply = false
+  clearReplyTimeout()
+  audioPlayer.abort()
+  const rawReply = botOutput.value.trim()
+  if (rawReply) {
+    addMessage('bot', rawReply)
+  }
+  transition('REPLY_COMPLETE')
+}
+
 // ---- WebSocket 消息 ----
 
 function handleWsMessage(data) {
+  // 超时已结束本轮后迟到的帧：忽略，避免重复写历史 / 误改文本框
+  if (!awaitingReply) return
   if (data.type === 'audio_chunk') {
+    // 收到音频帧也算有响应，刷新超时
+    bumpReplyTimeout()
     // AstrBot live mode 推送的 TTS 音频帧（base64 wav）
     if (voiceEnabled.value && data.data) {
       audioPlayer.enqueueBase64Wav(data.data)
@@ -223,6 +272,7 @@ function handleWsMessage(data) {
     return
   }
   if (data.type !== 'plain' || !data.data) return
+  bumpReplyTimeout()
   if (data.streaming) {
     botOutput.value += data.data
   } else {
@@ -231,9 +281,13 @@ function handleWsMessage(data) {
 }
 
 function handleWsEnd() {
-  const replyText = stripEmotionTags(botOutput.value)
-  if (replyText) {
-    addMessage('bot', replyText)
+  // 已被超时逻辑结束的轮次，end 帧直接忽略
+  if (!awaitingReply) return
+  awaitingReply = false
+  clearReplyTimeout()
+  const rawReply = botOutput.value.trim()
+  if (rawReply) {
+    addMessage('bot', rawReply)
   }
   transition('REPLY_COMPLETE')
   // 音频继续播放直到队列空（player.onSpeakingChange 会自动翻 isSpeaking 回 false）

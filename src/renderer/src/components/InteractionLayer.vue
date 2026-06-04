@@ -31,6 +31,7 @@
       <ChatHistory
         v-if="showHistory"
         :messages="messages"
+        :debug-mode="debugMode"
         @close="closeHistory"
       />
     </template>
@@ -47,6 +48,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { formatBotDisplayText } from '../services/emotion.js'
 import LoginForm from './LoginForm.vue'
 import ChatInput from './ChatInput.vue'
 import ChatHistory from './ChatHistory.vue'
@@ -57,6 +59,7 @@ const props = defineProps({
   state: { type: String, required: true },
   messages: { type: Array, default: () => [] },
   botOutput: { type: String, default: '' },
+  debugMode: { type: Boolean, default: false },
   // 上传函数透传给 ChatInput，由 App.vue 传入 api.uploadFile
   uploadFn: { type: Function, required: true },
   // 当前是否正在播放 TTS 音频（用于显示「正在说话」指示器）
@@ -79,7 +82,8 @@ const dismissedReply = ref(false)
 
 const lastBotMessage = computed(() => {
   const last = [...props.messages].reverse().find(m => m.role === 'bot')
-  return last?.content || ''
+  if (!last?.content) return ''
+  return formatBotDisplayText(last.content, { debug: props.debugMode })
 })
 
 // payload: { text: string, attachments: Array<{attachment_id, base64, mimeType, filename}> }

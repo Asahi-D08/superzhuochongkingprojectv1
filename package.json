@@ -9,10 +9,12 @@
     "preview": "electron-vite preview",
     "test": "vitest",
     "postinstall": "electron-builder install-app-deps",
-    "build:mac": "npm run build && electron-builder --mac",
-    "build:mac:arm": "npm run build && electron-builder --mac --arm64",
-    "build:mac:x64": "npm run build && electron-builder --mac --x64",
-    "build:mac:universal": "npm run build && electron-builder --mac --universal"
+    "icon": "node scripts/generate-icon.mjs",
+    "build:mac": "npm run icon && npm run build && electron-builder --mac",
+    "build:mac:arm": "npm run icon && npm run build && electron-builder --mac --arm64",
+    "build:mac:x64": "npm run icon && npm run build && electron-builder --mac --x64",
+    "build:mac:universal": "npm run icon && npm run build && electron-builder --mac --universal",
+    "build:win": "npm run icon && npm run build && electron-builder --win --x64"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +26,8 @@
     "electron-builder": "^25.1.8",
     "electron-vite": "^5.0.0",
     "jsdom": "^29.1.1",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "vite": "^7.3.1",
     "vitest": "^4.1.5"
   },
@@ -67,6 +71,22 @@
     "dmg": {
       "title": "超级桌宠大王 ${version}",
       "writeUpdateInfo": false
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     }
   }
 }

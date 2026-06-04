@@ -37,6 +37,24 @@
           />
         </div>
 
+        <div class="setting-item">
+          <div class="setting-label">
+            <span>无回复超时</span>
+            <span class="setting-value">{{ replyTimeout === 0 ? '关闭' : replyTimeout + 's' }}</span>
+          </div>
+          <input
+            type="range"
+            :min="0"
+            :max="120"
+            :step="5"
+            :value="replyTimeout"
+            @input="setReplyTimeout(+$event.target.value)"
+          />
+          <div class="setting-hint">
+            超过该时长仍无回复则自动结束本轮，可继续发下一条；设为「关闭」则一直等待。
+          </div>
+        </div>
+
         <div class="setting-item setting-toggle">
           <div class="setting-label">
             <span>启用语音</span>
@@ -51,6 +69,23 @@
           </div>
           <div class="setting-hint">
             使用系统自带日语语音朗读回复，无需联网。
+          </div>
+        </div>
+
+        <div class="setting-item setting-toggle">
+          <div class="setting-label">
+            <span>调试</span>
+            <label class="toggle">
+              <input
+                type="checkbox"
+                :checked="debugMode"
+                @change="setDebugMode($event.target.checked)"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-hint">
+            开启后显示完整输出（含 &lt;&gt; 标签与片假名）；关闭时仅显示双引号内内容。
           </div>
         </div>
       </div>
@@ -70,9 +105,13 @@ const {
   characterSize,
   textBoxHeight,
   voiceEnabled,
+  debugMode,
+  replyTimeout,
   setCharacterSize,
   setTextBoxHeight,
   setVoiceEnabled,
+  setDebugMode,
+  setReplyTimeout,
   resetDefaults
 } = useSettings()
 </script>

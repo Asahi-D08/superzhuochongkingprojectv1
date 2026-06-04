@@ -29,6 +29,18 @@
         />
       </div>
 
+      <div class="form-group">
+        <label for="password-input">密码</label>
+        <input
+          id="password-input"
+          v-model="passwordInput"
+          type="password"
+          autocomplete="current-password"
+          placeholder="输入密码"
+          @keyup.enter="handleLogin"
+        />
+      </div>
+
       <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
 
       <div class="form-actions">
@@ -43,18 +55,21 @@
 
 <script setup>
 import { ref } from 'vue'
+import { verifySessionPassword } from '../services/loginCredentials.js'
 
 const emit = defineEmits(['login', 'close'])
 
 const serverUrl = 'https://astrbot.losingfire.com'
 const apiKeyInput = ref('')
 const sessionIdInput = ref('')
+const passwordInput = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
   const normalizedApiKey = apiKeyInput.value.trim()
   const sessionId = sessionIdInput.value.trim()
+  const password = passwordInput.value
   if (!normalizedApiKey) {
     errorMsg.value = '请填写 API Key'
     return
@@ -65,6 +80,14 @@ async function handleLogin() {
   }
   if (!sessionId) {
     errorMsg.value = '请填写 Session ID（QQ 号）'
+    return
+  }
+  if (!password) {
+    errorMsg.value = '请填写密码'
+    return
+  }
+  if (!verifySessionPassword(sessionId, password)) {
+    errorMsg.value = '密码错误'
     return
   }
   loading.value = true

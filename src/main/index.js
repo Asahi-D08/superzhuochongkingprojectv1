@@ -33,8 +33,17 @@ function createWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
   mainWindow.setPosition(screenWidth - 250, screenHeight - 300)
 
+  // 置顶到最高层级，使其悬浮在全屏 / 无边框全屏程序之上。
+  // 'screen-saver' 是 Electron 暴露的最高 z-order 级别。
+  enforceAlwaysOnTop()
+  // 在所有虚拟桌面 / 全屏空间可见（主要影响 macOS，Windows 上无副作用）。
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  // 全屏程序出现时常会抢占 topmost，失焦后重新置顶兜底。
+  mainWindow.on('blur', enforceAlwaysOnTop)
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    enforceAlwaysOnTop()
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
@@ -42,6 +51,12 @@ function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+function enforceAlwaysOnTop() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  // flag=true，level='screen-saver' 让窗口浮在全屏程序上方
+  mainWindow.setAlwaysOnTop(true, 'screen-saver')
 }
 
 function createTrayIcon() {
@@ -97,6 +112,7 @@ function setupIPC() {
       width: nextWidth,
       height: nextHeight
     })
+    enforceAlwaysOnTop()
   })
 }
 

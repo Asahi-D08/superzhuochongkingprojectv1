@@ -22,7 +22,7 @@
               :alt="a.filename || 'image'"
             />
           </div>
-          <p v-if="msg.content" class="bubble-text">{{ msg.content }}</p>
+          <p v-if="displayContent(msg)" class="bubble-text">{{ displayContent(msg) }}</p>
           <span class="bubble-time">{{ formatTime(msg.timestamp) }}</span>
         </div>
       </div>
@@ -32,11 +32,21 @@
 
 <script setup>
 import { onMounted, ref, nextTick } from 'vue'
+import { formatBotDisplayText } from '../services/emotion.js'
 
-defineProps({
-  messages: { type: Array, default: () => [] }
+const props = defineProps({
+  messages: { type: Array, default: () => [] },
+  debugMode: { type: Boolean, default: false }
 })
 defineEmits(['close'])
+
+function displayContent(msg) {
+  if (!msg.content) return ''
+  if (msg.role === 'bot') {
+    return formatBotDisplayText(msg.content, { debug: props.debugMode })
+  }
+  return msg.content
+}
 
 const messagesRef = ref(null)
 
